@@ -52,9 +52,6 @@ En los talleres mecánicos independientes, el registro de clientes, vehículos, 
 - **Búsqueda lenta e ineficiente de refacciones:** Al cotizar, el personal debe navegar en múltiples tiendas en línea y plataformas comerciales, copiando manualmente descripciones, precios, números de parte y enlaces. Al cotizar múltiples refacciones, el proceso se vuelve repetitivo, propiciando demoras e inconsistencias en la captura.
 - **Riesgo de incompatibilidad:** Piezas con funciones similares no siempre son compatibles entre distintas versiones o motorizaciones. Una búsqueda general no garantiza que el componente sea apto; la compatibilidad final exige validación técnica humana antes de confirmar el presupuesto.
 - **Falta de certidumbre para el cliente:** Presupuestos poco desglosados y la ausencia de información en tiempo real sobre el avance de la reparación generan desconfianza e incrementan las llamadas recurrentes solicitando actualizaciones.
-
-> **Necesidad Identificada:** Una aplicación web que unifique la gestión esencial del taller, agilice el armado de cotizaciones e integre la consulta multifuente de autopartes en una sola interfaz, sin reemplazar el criterio técnico del mecánico.
-
 ---
 
 ## 2. Justificación del Proyecto
@@ -67,7 +64,6 @@ Para ello, se propone integrar un buscador multifuente de autopartes que permita
 - **Centralización total:** La gestión de clientes y vehículos en una base de datos relacional permite recuperar expedientes completos desde una sola plataforma.
 - **Agilidad en la consulta:** El buscador multifuente minimiza la apertura simultánea de pestañas y la recaptura de datos.
 - **Trazabilidad de ofertas:** Al seleccionar una refacción comercial, sus datos (precio de referencia, origen y enlace) se integran directamente a la línea de cotización.
-- *Nota de alcance:* El sistema se enfoca en reducir tiempos de cotización y captura; no contempla administración de almacenes físicos ni compras automatizadas.
 
 ### 2.2. Impacto para el Cliente
 - **Presupuestos claros y desglosados:** Visualización separada de refacciones, mano de obra, subtotales y total estimado.
@@ -138,10 +134,6 @@ El MVP se estructura en dos fases de prioridad para salvaguardar la viabilidad d
 ### 6.2. Funcionalidades Complementarias Sujetas al Avance (P2)
 1. **Evidencia fotográfica:** Subida de al menos una fotografía (JPG/PNG) del diagnóstico.
 2. **Seguimiento del servicio para clientes:** Enlace web público de solo lectura con estados predefinidos de la orden.
-
-> [!TIP]
-> **Criterio de Validación del MVP:** Completar satisfactoriamente el flujo principal de prueba: dar de alta un cliente y un vehículo, realizar una búsqueda comercial de refacción (o captura manual), agregarla a una cotización, calcular importes correctamente y almacenar el registro en la base de datos.
-
 ---
 
 ## 7. Requisitos del Sistema
@@ -320,9 +312,6 @@ Se propone una **arquitectura monolítica modular bajo el patrón Modelo-Vista-C
 
 ## 13. Wireframes de las Pantallas Principales
 
-> [!NOTE]
-> Los wireframes representan la estructura esquemática de navegación; el diseño visual final se afinará en la implementación con Tailwind CSS.
-
 ### 13.1. Acceso y Panel Principal
 - **Login administrativo:** Formulario simple y directo para validar credenciales del personal.
 - **Dashboard del taller:** Tarjetas de acceso rápido apilables verticalmente en dispositivos móviles:
@@ -370,3 +359,80 @@ Se propone una **arquitectura monolítica modular bajo el patrón Modelo-Vista-C
 - **Alternativa permanente:** Si una búsqueda no arroja resultados o la API no responde, garantizar siempre la captura manual accesible.
 - **Responsabilidad sobre compatibilidad:** Informar en la interfaz que las ofertas comerciales son de referencia y que la compatibilidad debe ser validada por el mecánico.
 - **Desglose transparente:** Separar visiblemente costos de refacciones, mano de obra e importe total para máxima comprensión del cliente.
+
+
+Justificación técnica del sistema de control de versiones y la plataforma de alojamiento
+
+Sistema de control de versiones: Git
+
+Se utilizará Git como sistema de control de versiones para registrar y administrar los cambios realizados durante el desarrollo de SEIBI. Esta herramienta permitirá mantener un historial de modificaciones, recuperar versiones anteriores y trabajar en ramas independientes para desarrollar nuevas funcionalidades sin afectar directamente la versión principal del sistema.
+
+Su implementación facilitará el seguimiento de los cambios en los módulos de gestión vehicular, generación de cotizaciones y búsqueda multifuente de autopartes. Asimismo, permitirá identificar las modificaciones realizadas en cada etapa del desarrollo y mantener una estructura organizada del código fuente y los archivos de documentación.
+
+Plataforma de alojamiento: GitHub
+
+Se utilizará GitHub como plataforma para alojar el repositorio remoto de SEIBI, el cual será público desde el inicio del desarrollo. Esta decisión permitirá centralizar el código fuente, la documentación técnica, los diagramas y los archivos de configuración en un mismo espacio, facilitando su consulta, seguimiento y mantenimiento.
+
+La combinación de Git y GitHub permitirá implementar un flujo de trabajo basado en ramas, commits descriptivos y solicitudes de integración (pull requests) cuando se requiera revisar cambios antes de incorporarlos a la rama principal. Debido a que el desarrollo estará a cargo de una sola persona, se utilizará un flujo de trabajo simplificado que mantenga la trazabilidad de las modificaciones sin introducir procesos innecesarios.
+
+Al mantener el repositorio público, se establecerán medidas para evitar la exposición de información sensible. Los archivos de configuración locales, las contraseñas, las claves de API y los datos reales de clientes no se incorporarán al repositorio. Para ello, se utilizará un archivo .gitignore y se mantendrán las credenciales fuera del código fuente.
+
+En conjunto, Git y GitHub proporcionarán un mecanismo de control, organización y respaldo del historial del proyecto, permitiendo gestionar los cambios de manera ordenada y conservar una referencia centralizada de la evolución de SEIBI.
+
+## Flujo de trabajo con GitHub Flow
+
+SEIBI utilizará GitHub Flow como metodología de trabajo para administrar los cambios del código fuente y la documentación. Este flujo se adapta al desarrollo individual del proyecto, ya que permite trabajar sobre funcionalidades específicas mediante ramas temporales y mantener la rama principal en un estado estable.
+
+### 1. Rama principal
+
+La rama `main` será la rama principal del repositorio y contendrá la versión integrada y funcional del sistema. Los cambios se incorporarán después de revisar las modificaciones y comprobar que no introduzcan errores conocidos.
+
+### 2. Nomenclatura de ramas
+
+Las ramas temporales utilizarán nombres en minúsculas, sin espacios ni acentos, acompañados de un prefijo que identifique el propósito del cambio.
+
+| Prefijo | Propósito | Ejemplo |
+|---|---|---|
+| `feature/` | Desarrollo de funcionalidades nuevas | `feature/buscador-autopartes` |
+| `fix/` | Corrección de errores | `fix/calculo-cotizacion` |
+| `docs/` | Modificaciones de documentación | `docs/arquitectura-seibi` |
+| `refactor/` | Reorganización del código sin modificar su comportamiento esperado | `refactor/servicio-busqueda` |
+| `test/` | Incorporación o modificación de pruebas | `test/cotizaciones` |
+
+Cada rama se creará a partir de la versión actualizada de `main` y estará enfocada en un cambio concreto. Una vez integrada, se eliminará si ya no es necesaria.
+
+### 3. Convención de commits
+
+Los commits utilizarán mensajes descriptivos que permitan identificar el propósito de cada modificación. Se adoptará una convención basada en Conventional Commits, utilizando tipos como `feat`, `fix`, `docs`, `refactor` y `test`.
+
+Ejemplos:
+
+- `feat: agregar buscador de autopartes`
+- `fix: corregir calculo de cotizacion`
+- `docs: actualizar diagrama de arquitectura`
+- `refactor: separar servicio de busqueda`
+- `test: agregar pruebas de cotizaciones`
+
+Cada commit deberá representar un cambio identificable y evitar mensajes genéricos que dificulten la consulta del historial.
+
+### 4. Gestión de Pull Requests
+
+Los cambios desarrollados en ramas temporales se incorporarán a `main` mediante solicitudes de integración (*pull requests*). Cada solicitud incluirá un título descriptivo, una explicación breve del cambio y las comprobaciones realizadas.
+
+Antes de integrar una solicitud, se revisarán las diferencias del código y se ejecutarán las pruebas pertinentes según el tipo de modificación. También se comprobará que no se incorporen credenciales, información sensible ni archivos ajenos al cambio.
+
+Dado que el desarrollo estará a cargo de una sola persona, la revisión se realizará mediante una autoinspección del cambio. No se establecerá como requisito la aprobación de otro desarrollador, aunque se conservará el procedimiento de revisión previo a la integración.
+
+### 5. Política de combinación de ramas
+
+Se utilizará la estrategia **Squash and merge** para integrar las solicitudes de cambio, agrupando los commits de cada rama en un único commit dentro de `main`. Esto permitirá mantener un historial principal más compacto y facilitar la identificación de las funcionalidades incorporadas.
+
+La rama principal deberá mantenerse estable y no se integrarán cambios con errores conocidos pendientes de resolver. Después de una integración satisfactoria, la rama temporal podrá eliminarse.
+
+### 6. Protección y mantenimiento del repositorio
+
+Se procurará configurar `main` para que los cambios se incorporen mediante *pull requests* en lugar de realizar modificaciones directas sobre la rama principal. Las reglas se ajustarán a las necesidades del desarrollo individual para evitar requisitos que dependan de la aprobación de otros colaboradores.
+
+Como el repositorio será público, no se almacenarán contraseñas, claves de API, archivos `.env` ni información real de clientes. Estas medidas se complementarán con el archivo `.gitignore` y la gestión de credenciales mediante variables de entorno.
+
+Con este flujo de trabajo, SEIBI mantendrá un historial trazable, una organización consistente de las modificaciones y un procedimiento de integración que permita desarrollar nuevas funcionalidades sin comprometer innecesariamente la estabilidad del sistema.
