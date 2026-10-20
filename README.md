@@ -29,6 +29,7 @@
 
 ## 📑 Tabla de Contenidos
 
+### 📌 [Rúbrica 1](#rúbrica-1)
 1. [Planteamiento del Problema](#1-planteamiento-del-problema)
 2. [Justificación del Proyecto](#2-justificación-del-proyecto)
    - [2.1. Impacto Operativo y Comercial](#21-impacto-operativo-y-comercial)
@@ -64,6 +65,10 @@
 14. [Definición e Inventario de Contenido](#14-definición-e-inventario-de-contenido)
     - [14.1. Inventario de Contenido](#141-inventario-de-contenido)
     - [14.2. Criterios de Comunicación](#142-criterios-de-comunicación)
+
+---
+
+### 📌 [Rúbrica 2](#rúbrica-2)
 15. [Control de Versiones y Plataforma de Alojamiento](#15-control-de-versiones-y-plataforma-de-alojamiento)
     - [15.1. Sistema de Control de Versiones: Git](#151-sistema-de-control-de-versiones-git)
     - [15.2. Plataforma de Alojamiento: GitHub](#152-plataforma-de-alojamiento-github)
@@ -92,6 +97,11 @@
     - [19.2. Estructura de Tablas de la Base de Datos](#192-estructura-de-tablas-de-la-base-de-datos)
     - [19.3. Relaciones entre las Tablas](#193-relaciones-entre-las-tablas)
     - [19.4. Reglas de Integridad y Validación](#194-reglas-de-integridad-y-validación)
+
+---
+
+<a id="rubrica-1"></a>
+# Rúbrica 1
 
 ---
 
@@ -411,6 +421,10 @@ Se propone una **arquitectura monolítica modular bajo el patrón Modelo-Vista-C
 - **Responsabilidad sobre compatibilidad:** Informar en la interfaz que las ofertas comerciales son de referencia y que la compatibilidad debe ser validada por el mecánico.
 - **Desglose transparente:** Separar visiblemente costos de refacciones, mano de obra e importe total para máxima comprensión del cliente.
 
+---
+
+<a id="rubrica-2"></a>
+# Rúbrica 2
 
 ---
 
