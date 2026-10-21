@@ -7,6 +7,7 @@
 [![PHP](https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://php.net)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![MySQL](https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white)](https://mysql.com)
+[![Figma](https://img.shields.io/badge/Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white)](https://www.figma.com/design/PnxTdqqoSwtksCPH4iU0ay/Sin-t%C3%ADtulo?node-id=20-422&t=oQTyS8JAg6EfOdSp-1)
 
 ---
 
@@ -18,6 +19,7 @@
 | **Grado y Grupo** | **9A** |
 | **Equipo** | **Equipo 10** |
 | **Sistema** | **SEIBI — Plataforma de Gestión Automotriz** |
+| **Prototipo / Figma** | [🔗 Ver Diseño en Figma](https://www.figma.com/design/PnxTdqqoSwtksCPH4iU0ay/Sin-t%C3%ADtulo?node-id=20-422&t=oQTyS8JAg6EfOdSp-1) |
 
 ---
 
@@ -372,6 +374,13 @@ Se propone una **arquitectura monolítica modular bajo el patrón Modelo-Vista-C
 ---
 
 ## 13. Wireframes de las Pantallas Principales
+
+> [!TIP]
+> **Prototipo Interactivo y Wireframes en Figma:**  
+> Puedes consultar el diseño interactivo, los flujos y la distribución visual de las pantallas directamente en Figma:  
+> 🔗 **[Abrir Proyecto de Wireframes en Figma](https://www.figma.com/design/PnxTdqqoSwtksCPH4iU0ay/Sin-t%C3%ADtulo?node-id=20-422&t=oQTyS8JAg6EfOdSp-1)**
+
+---
 
 ### 13.1. Acceso y Panel Principal
 - **Login administrativo:** Formulario simple y directo para validar credenciales del personal.
