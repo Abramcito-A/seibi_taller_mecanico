@@ -1,9 +1,142 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/inter';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
+@source '../js/**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
+    --color-seibi-navy: #172B40;
+    --color-seibi-ink: #223247;
+    --color-seibi-orange: #C65317;
+    --color-seibi-surface: #FFFFFF;
+    --color-seibi-workspace: #F3F5F7;
+    --color-seibi-border: #DCE2E8;
+    --color-status-success: #16794B;
+    --color-status-error: #B42318;
+    --color-status-info: #175CD3;
+    --color-status-pending: #A15C07;
+    --radius-panel: 0.625rem;
+    --shadow-panel: 0 1px 2px rgb(23 43 64 / 5%), 0 8px 24px rgb(23 43 64 / 4%);
+    --ease-ui: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@layer base {
+    :root {
+        color-scheme: light;
+        font-family: var(--font-sans);
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+    }
+
+    body {
+        min-width: 20rem;
+        background: var(--color-seibi-workspace);
+        color: var(--color-seibi-ink);
+    }
+
+    [x-cloak] {
+        display: none !important;
+    }
+
+    ::selection {
+        background: rgb(23 43 64 / 14%);
+    }
+}
+
+@layer components {
+    .ui-input {
+        display: block;
+        width: 100%;
+        min-height: 2.75rem;
+        border: 1px solid var(--color-seibi-border);
+        border-radius: 0.5rem;
+        background: var(--color-seibi-surface);
+        padding: 0.625rem 0.75rem;
+        color: var(--color-seibi-ink);
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        transition: border-color 180ms var(--ease-ui), box-shadow 180ms var(--ease-ui), background-color 180ms var(--ease-ui);
+    }
+
+    .ui-input::placeholder {
+        color: #738092;
+    }
+
+    .ui-input:focus {
+        border-color: var(--color-seibi-navy);
+        outline: 0;
+        box-shadow: 0 0 0 3px rgb(23 43 64 / 12%);
+    }
+
+    .ui-input[aria-invalid='true'] {
+        border-color: var(--color-status-error);
+        background: #fffafa;
+    }
+
+    .ui-input:disabled {
+        cursor: not-allowed;
+        background: var(--color-seibi-workspace);
+        color: #667085;
+    }
+
+    .ui-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        text-align: left;
+    }
+
+    .ui-table thead {
+        background: #f8f9fa;
+    }
+
+    .ui-table th {
+        padding: 0.875rem 1.25rem;
+        color: #647184;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .ui-table td {
+        border-top: 1px solid var(--color-seibi-border);
+        padding: 1rem 1.25rem;
+        vertical-align: middle;
+    }
+
+    .ui-table tbody tr {
+        transition: background-color 160ms var(--ease-ui);
+    }
+
+    .ui-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .ui-table-pagination nav[role='navigation'] {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .ui-table-pagination a,
+    .ui-table-pagination span[aria-current='page'] > span {
+        border-radius: 0.375rem;
+        border-color: var(--color-seibi-border);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
