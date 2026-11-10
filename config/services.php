@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'serpapi' => [
+        'api_key' => env('SERPAPI_API_KEY'),
+        'location' => env('SERPAPI_LOCATION', 'Mexico'),
+    ],
+
 ];

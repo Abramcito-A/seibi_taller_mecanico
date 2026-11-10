@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ClienteController;
+use App\Http\Controllers\CotizacionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiagnosticoController;
 use App\Http\Controllers\EvidenciaController;
 use App\Http\Controllers\OrdenServicioController;
+use App\Http\Controllers\PartSearchController;
 use App\Http\Controllers\VehiculoController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -63,6 +65,22 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::middleware('role:administrador,mecanico')->group(function () {
         Route::post('/ordenes/{orden}/iniciar-diagnostico', [OrdenServicioController::class, 'iniciarDiagnostico'])
             ->name('ordenes.iniciar-diagnostico');
+        Route::get('/ordenes/{orden}/cotizaciones/create', [CotizacionController::class, 'create'])
+            ->name('cotizaciones.create');
+        Route::post('/ordenes/{orden}/cotizaciones', [CotizacionController::class, 'store'])
+            ->name('cotizaciones.store');
+        Route::get('/ordenes/{orden}/cotizaciones/{cotizacion}/edit', [CotizacionController::class, 'edit'])
+            ->name('cotizaciones.edit');
+        Route::match(['PUT', 'PATCH'], '/ordenes/{orden}/cotizaciones/{cotizacion}', [CotizacionController::class, 'update'])
+            ->name('cotizaciones.update');
+        Route::delete('/ordenes/{orden}/cotizaciones/{cotizacion}', [CotizacionController::class, 'destroy'])
+            ->name('cotizaciones.destroy');
+        Route::get('/ordenes/{orden}/autopartes/buscar', [PartSearchController::class, 'search'])
+            ->name('autopartes.search');
+        Route::get('/ordenes/{orden}/autopartes/oferta/detalles', [PartSearchController::class, 'offerDetails'])
+            ->name('autopartes.details');
+        Route::post('/ordenes/{orden}/cotizaciones/{cotizacion}/autopartes/agregar', [PartSearchController::class, 'addOffer'])
+            ->name('autopartes.add');
         Route::get('/ordenes/{orden}/diagnosticos/create', [DiagnosticoController::class, 'create'])
             ->name('diagnosticos.create');
         Route::post('/ordenes/{orden}/diagnosticos', [DiagnosticoController::class, 'store'])
@@ -75,6 +93,11 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('diagnosticos.edit');
         Route::match(['PUT', 'PATCH'], '/ordenes/{orden}/diagnosticos/{diagnostico}', [DiagnosticoController::class, 'update'])
             ->name('diagnosticos.update');
+    });
+
+    Route::middleware('role:administrador,mecanico,recepcionista')->group(function () {
+        Route::get('/ordenes/{orden}/cotizaciones', [CotizacionController::class, 'index'])->name('cotizaciones.index');
+        Route::get('/ordenes/{orden}/cotizaciones/{cotizacion}', [CotizacionController::class, 'show'])->name('cotizaciones.show');
     });
 
     Route::middleware('role:administrador')->group(function () {

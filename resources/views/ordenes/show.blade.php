@@ -15,6 +15,7 @@
             'resumen' => 'Resumen',
             'recepcion' => 'Recepción',
             'diagnosticos' => 'Diagnósticos',
+            'cotizaciones' => 'Cotizaciones',
             'evidencias' => 'Evidencias',
             'historial' => 'Historial',
         ];
@@ -181,6 +182,37 @@
                     <nav aria-label="Paginación de diagnósticos" class="overflow-x-auto">
                         {{ $diagnosticos->onEachSide(1)->links() }}
                     </nav>
+                </div>
+            @endif
+        </x-ui.panel>
+    @endif
+
+    @if ($section === 'cotizaciones')
+        <x-ui.panel title="Cotizaciones" description="Presupuestos independientes asociados a esta orden">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-slate-600">{{ $orden->cotizaciones->count() }} cotización(es) registrada(s).</p>
+                @if (auth()->user()->hasRole('mecanico'))
+                    <x-ui.button :href="route('cotizaciones.create', $orden)" icon="plus">Nueva cotización</x-ui.button>
+                @endif
+            </div>
+            @if ($orden->cotizaciones->isEmpty())
+                <x-ui.empty-state title="Sin cotizaciones" description="Aún no se ha creado un presupuesto para esta orden." icon="file-text" class="min-h-48 px-0 py-5" />
+            @else
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-left">
+                        <thead><tr class="border-b border-seibi-border text-xs uppercase text-slate-500"><th class="px-3 py-3">Folio</th><th class="px-3 py-3">Trabajo</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3"></th></tr></thead>
+                        <tbody class="divide-y divide-seibi-border">
+                            @foreach ($orden->cotizaciones->sortByDesc('fecha_creacion') as $cotizacion)
+                                <tr class="text-sm">
+                                    <td class="whitespace-nowrap px-3 py-3 font-semibold text-seibi-ink">{{ $cotizacion->folio }}</td>
+                                    <td class="px-3 py-3"><span class="block font-medium text-seibi-ink">{{ $cotizacion->titulo }}</span><span class="text-xs text-slate-500">{{ ucfirst(str_replace('_', ' ', $cotizacion->tipo)) }}</span></td>
+                                    <td class="px-3 py-3"><x-ui.badge :tone="$cotizacion->estado === 'borrador' ? 'pending' : ($cotizacion->estado === 'aprobada' ? 'success' : ($cotizacion->estado === 'rechazada' || $cotizacion->estado === 'cancelada' ? 'error' : 'info'))">{{ ucfirst($cotizacion->estado) }}</x-ui.badge></td>
+                                    <td class="whitespace-nowrap px-3 py-3 text-right font-semibold text-seibi-ink">$ {{ number_format((float) $cotizacion->total, 2, '.', ',') }} MXN</td>
+                                    <td class="px-3 py-3 text-right"><x-ui.button :href="route('cotizaciones.show', [$orden, $cotizacion])" variant="neutral" size="compact">Consultar</x-ui.button></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             @endif
         </x-ui.panel>

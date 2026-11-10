@@ -174,9 +174,10 @@ class OrdenServicioController extends Controller
             'usuarioResponsable',
             'historialEstados.usuario',
             'evidencias.usuario',
+            'cotizaciones.detalles',
         ]);
 
-        $validSections = ['resumen', 'recepcion', 'diagnosticos', 'evidencias', 'historial'];
+        $validSections = ['resumen', 'recepcion', 'diagnosticos', 'cotizaciones', 'evidencias', 'historial'];
         $section = $request->string('seccion')->toString();
         if (! in_array($section, $validSections, true)) {
             $section = 'resumen';
