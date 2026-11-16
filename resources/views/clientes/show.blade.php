@@ -1,20 +1,14 @@
 @extends('layouts.app')
+                                                            
 
 @section('title', $cliente->nombre . ' ' . $cliente->apellido)
 
 @section('content')
-    <x-ui.page-header :title="$cliente->nombre . ' ' . $cliente->apellido" :description="'Cliente #' . $cliente->id_cliente">
+    <x-ui.page-header :title="$cliente->nombre . ' ' . $cliente->apellido">
         <x-slot:actions>
             <x-ui.back-button :fallback="route('clientes.index')" />
-            @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+            @if (auth()->user()->hasRole('recepcionista'))
                 <x-ui.button :href="route('clientes.edit', $cliente)" variant="secondary">Editar</x-ui.button>
-            @endif
-            @if (auth()->user()->hasRole('administrador'))
-                <form id="delete-cliente-{{ $cliente->id_cliente }}" method="POST" action="{{ route('clientes.destroy', $cliente) }}">
-                    @csrf
-                    @method('DELETE')
-                    <x-ui.confirm-trigger :form-id="'delete-cliente-' . $cliente->id_cliente" title="Eliminar cliente" message="¿Deseas eliminar a este cliente? Esta acción no se puede deshacer." class="min-h-10">Eliminar</x-ui.confirm-trigger>
-                </form>
             @endif
         </x-slot:actions>
     </x-ui.page-header>
@@ -30,7 +24,7 @@
     </x-ui.card>
 
     <x-ui.panel title="Vehículos" :description="$cliente->vehiculos->count() . ' registrados'" padding="p-0">
-        @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+        @if (auth()->user()->hasRole('recepcionista'))
             <x-slot:actions><x-ui.button :href="route('vehiculos.create', ['cliente_id' => $cliente->id_cliente])" icon="plus">Agregar vehículo</x-ui.button></x-slot:actions>
         @endif
         @if ($cliente->vehiculos->isEmpty())
@@ -46,7 +40,7 @@
                                 <td class="text-sm text-slate-600">{{ $vehiculo->anio }}</td>
                                 <td class="text-sm text-slate-600">{{ $vehiculo->placas ?? '—' }}</td>
                                 <td class="text-sm text-slate-600">{{ $vehiculo->kilometraje_actual ? number_format($vehiculo->kilometraje_actual) . ' km' : '—' }}</td>
-                                <td><div class="flex justify-end gap-3"><a href="{{ route('vehiculos.show', $vehiculo) }}" class="text-sm font-semibold text-seibi-navy hover:underline">Ver</a>@if (auth()->user()->hasRole('administrador', 'recepcionista'))<a href="{{ route('vehiculos.edit', $vehiculo) }}" class="text-sm font-semibold text-slate-600 hover:underline">Editar</a>@endif</div></td>
+                                <td><div class="flex justify-end gap-3"><a href="{{ route('vehiculos.show', $vehiculo) }}" class="text-sm font-semibold text-seibi-navy hover:underline">Ver</a>@if (auth()->user()->hasRole('recepcionista'))<a href="{{ route('vehiculos.edit', $vehiculo) }}" class="text-sm font-semibold text-slate-600 hover:underline">Editar</a>@endif</div></td>
                             </tr>
                         @endforeach
                     </tbody>

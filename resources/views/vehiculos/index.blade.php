@@ -4,7 +4,7 @@
 
 @section('content')
     <x-ui.page-header title="Vehículos" description="Mantén a la vista los vehículos, sus propietarios y los datos necesarios para su atención.">
-        @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+        @if (auth()->user()->hasRole('recepcionista'))
             <x-slot:actions><x-ui.button :href="route('vehiculos.create')" icon="plus">Nuevo vehículo</x-ui.button></x-slot:actions>
         @endif
     </x-ui.page-header>
@@ -28,7 +28,7 @@
     <x-ui.panel padding="p-0">
         @if ($vehiculos->isEmpty())
             <x-ui.empty-state title="No se encontraron vehículos" :description="request('q') || request('cliente_id') ? 'Prueba con otros términos o cambia el filtro de cliente.' : 'Registra el primer vehículo para vincularlo con su propietario.'" icon="car-front">
-                @if (! (request('q') || request('cliente_id')) && auth()->user()->hasRole('administrador', 'recepcionista'))
+                @if (! (request('q') || request('cliente_id')) && auth()->user()->hasRole('recepcionista'))
                     <x-slot:action><x-ui.button :href="route('vehiculos.create')" icon="plus">Registrar vehículo</x-ui.button></x-slot:action>
                 @endif
             </x-ui.empty-state>
@@ -69,15 +69,8 @@
                                 <div class="flex items-center justify-end gap-3 whitespace-nowrap">
                                     <a href="{{ route('vehiculos.show', $vehiculo) }}"
                                        class="text-sm font-semibold text-seibi-navy hover:underline">Ver</a>
-                                    @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+                                    @if (auth()->user()->hasRole('recepcionista'))
                                         <a href="{{ route('vehiculos.edit', $vehiculo) }}" class="text-sm font-semibold text-slate-600 hover:text-seibi-ink hover:underline">Editar</a>
-                                    @endif
-                                    @if (auth()->user()->hasRole('administrador'))
-                                        <form id="delete-vehiculo-{{ $vehiculo->id_vehiculo }}" method="POST" action="{{ route('vehiculos.destroy', $vehiculo) }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <x-ui.confirm-trigger :form-id="'delete-vehiculo-' . $vehiculo->id_vehiculo" title="Eliminar vehículo" message="¿Deseas eliminar este vehículo? Esta acción no se puede deshacer." variant="destructive-link" size="compact">Eliminar</x-ui.confirm-trigger>
-                                        </form>
                                     @endif
                                 </div>
                             </td>
@@ -99,4 +92,3 @@
         <x-ui.badge>{{ $vehiculos->total() }} {{ $vehiculos->total() === 1 ? 'vehículo encontrado' : 'vehículos encontrados' }}</x-ui.badge>
     </div>
 @endsection
-

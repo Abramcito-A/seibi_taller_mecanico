@@ -6,15 +6,8 @@
     <x-ui.page-header :title="$vehiculo->marca . ' ' . $vehiculo->modelo" :description="'Vehículo #' . $vehiculo->id_vehiculo . ' · ' . $vehiculo->anio . ($vehiculo->version ? ' · ' . $vehiculo->version : '')">
         <x-slot:actions>
             <x-ui.back-button :fallback="route('vehiculos.index')" />
-            @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+            @if (auth()->user()->hasRole('recepcionista'))
                 <x-ui.button :href="route('vehiculos.edit', $vehiculo)" variant="secondary">Editar</x-ui.button>
-            @endif
-            @if (auth()->user()->hasRole('administrador'))
-                <form id="delete-vehiculo-{{ $vehiculo->id_vehiculo }}" method="POST" action="{{ route('vehiculos.destroy', $vehiculo) }}">
-                    @csrf
-                    @method('DELETE')
-                    <x-ui.confirm-trigger :form-id="'delete-vehiculo-' . $vehiculo->id_vehiculo" title="Eliminar vehículo" message="¿Deseas eliminar este vehículo? Esta acción no se puede deshacer." class="min-h-10">Eliminar</x-ui.confirm-trigger>
-                </form>
             @endif
         </x-slot:actions>
     </x-ui.page-header>

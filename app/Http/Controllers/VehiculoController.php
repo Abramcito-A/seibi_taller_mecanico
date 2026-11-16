@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Cliente;
 use App\Models\Vehiculo;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 
 class VehiculoController extends Controller
 {
@@ -122,19 +121,5 @@ class VehiculoController extends Controller
 
         return redirect()->route('vehiculos.show', $vehiculo)
             ->with('success', 'Vehículo actualizado exitosamente.');
-    }
-
-    public function destroy(Vehiculo $vehiculo)
-    {
-        // Verificar si existe tabla ordenes_servicio y si tiene órdenes
-        if (Schema::hasTable('ordenes_servicio') && $vehiculo->ordenesServicio()->exists()) {
-            return redirect()->route('vehiculos.index')
-                ->with('error', 'No se puede eliminar el vehículo porque tiene órdenes de servicio asociadas.');
-        }
-
-        $vehiculo->delete();
-
-        return redirect()->route('vehiculos.index')
-            ->with('success', 'Vehículo eliminado exitosamente.');
     }
 }

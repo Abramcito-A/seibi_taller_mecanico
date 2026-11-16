@@ -14,6 +14,10 @@ class Evidencia extends Model
 
     public const ETAPA_DIAGNOSTICO = 'diagnostico';
 
+    public const ETAPA_REPARACION = 'reparacion';
+
+    public const ETAPA_ENTREGA = 'entrega';
+
     protected $table = 'evidencias';
 
     protected $primaryKey = 'id_evidencia';

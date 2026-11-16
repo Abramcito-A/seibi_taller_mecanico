@@ -5,12 +5,14 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\Vehiculo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
+// Clientes y vehículos los registra y edita la recepción; el administrador solo los consulta (ver RoleAccessTest).
 beforeEach(function () {
     $role = Role::query()->firstOrCreate(
-        ['nombre' => 'administrador'],
+        ['nombre' => 'recepcionista'],
         ['descripcion' => 'Rol para pruebas automatizadas.'],
     );
 
@@ -169,16 +171,19 @@ test('actualiza vehículo con datos válidos', function () {
     $this->assertDatabaseHas('vehiculos', ['id_vehiculo' => $vehiculo->id_vehiculo, 'marca' => 'Mazda']);
 });
 
-// ─── DESTROY ──────────────────────────────────────────────────────────────────
+// ─── ELIMINACIÓN NO PERMITIDA ──────────────────────────────────────────────────
 
-test('elimina vehículo sin órdenes de servicio', function () {
+test('ningún rol puede eliminar vehículos y el registro se conserva', function (string $roleName) {
+    $role = Role::query()->firstOrCreate(['nombre' => $roleName], ['descripcion' => 'Rol para pruebas automatizadas.']);
+    $this->actingAs(User::factory()->create(['id_rol' => $role->id_rol]));
     $vehiculo = Vehiculo::factory()->create();
 
-    $response = $this->delete(route('vehiculos.destroy', $vehiculo));
+    expect(Route::has('vehiculos.destroy'))->toBeFalse();
+    $this->delete('/vehiculos/'.$vehiculo->id_vehiculo)->assertMethodNotAllowed();
+    $this->deleteJson('/vehiculos/'.$vehiculo->id_vehiculo)->assertMethodNotAllowed();
 
-    $response->assertRedirect(route('vehiculos.index'));
-    $this->assertDatabaseMissing('vehiculos', ['id_vehiculo' => $vehiculo->id_vehiculo]);
-});
+    $this->assertModelExists($vehiculo);
+})->with(['administrador', 'mecanico', 'recepcionista']);
 
 // ─── RELACIÓN ─────────────────────────────────────────────────────────────────
 

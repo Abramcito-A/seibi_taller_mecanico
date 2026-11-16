@@ -47,22 +47,24 @@ test('sidebar exposes the single service orders module with role-specific action
 
     expect(substr_count($response->getContent(), 'Órdenes de servicio'))->toBeGreaterThanOrEqual(1);
 })->with([
-    'administrator navigation' => ['administrador', true],
+    'administrator navigation' => ['administrador', false],
     'mechanic navigation' => ['mecanico', false],
     'receptionist navigation' => ['recepcionista', true],
 ]);
 
-test('administrators can use every existing customer and vehicle action', function () {
+test('administrators can consult customer and vehicle records but cannot mutate them', function () {
     $this->actingAs(userWithRole('administrador'));
     $cliente = Cliente::factory()->create();
     $vehiculo = Vehiculo::factory()->create();
 
-    $this->get(route('clientes.create'))->assertOk();
-    $this->get(route('clientes.edit', $cliente))->assertOk();
-    $this->get(route('vehiculos.create'))->assertOk();
-    $this->get(route('vehiculos.edit', $vehiculo))->assertOk();
-    $this->delete(route('clientes.destroy', $cliente))->assertRedirect(route('clientes.index'));
-    $this->delete(route('vehiculos.destroy', $vehiculo))->assertRedirect(route('vehiculos.index'));
+    $this->get(route('clientes.index'))->assertOk();
+    $this->get(route('clientes.show', $cliente))->assertOk();
+    $this->get(route('vehiculos.index'))->assertOk();
+    $this->get(route('vehiculos.show', $vehiculo))->assertOk();
+    $this->get(route('clientes.create'))->assertForbidden();
+    $this->get(route('clientes.edit', $cliente))->assertForbidden();
+    $this->get(route('vehiculos.create'))->assertForbidden();
+    $this->get(route('vehiculos.edit', $vehiculo))->assertForbidden();
 });
 
 test('mechanics can consult customers and vehicles but cannot modify them directly', function () {
@@ -83,10 +85,8 @@ test('mechanics can consult customers and vehicles but cannot modify them direct
         ->assertSee('Volver atrás')
         ->assertSee(route('dashboard'), false);
     $this->put(route('clientes.update', $cliente), ['nombre' => 'No autorizado'])->assertForbidden();
-    $this->delete(route('clientes.destroy', $cliente))->assertForbidden();
     $this->get(route('vehiculos.create'))->assertForbidden();
     $this->put(route('vehiculos.update', $vehiculo), ['marca' => 'No autorizada'])->assertForbidden();
-    $this->delete(route('vehiculos.destroy', $vehiculo))->assertForbidden();
 
     $this->get(route('clientes.index'))
         ->assertDontSee('Nuevo cliente')
@@ -153,19 +153,64 @@ test('receptionists can create and update customers and vehicles but cannot dele
         'anio' => $vehiculo->anio,
     ])->assertRedirect(route('vehiculos.show', $vehiculo));
 
-    $this->delete(route('clientes.destroy', $cliente))->assertForbidden();
-    $this->delete(route('vehiculos.destroy', $vehiculo))->assertForbidden();
-
     $this->get(route('clientes.index'))
         ->assertSee('Nuevo cliente')
         ->assertSee('Editar')
         ->assertDontSee('Eliminar');
 });
 
-test('unimplemented user and technical modules have no public route or navigation link', function () {
+test('administrators cannot access mechanic or reception mutation routes', function () {
+    $this->actingAs(userWithRole('administrador'));
+
+    $cliente = Cliente::factory()->create();
+    $vehiculo = Vehiculo::factory()->create();
+
+    $this->post(route('clientes.store'), [
+        'nombre' => 'No autorizado',
+        'apellido' => 'Administrador',
+        'telefono' => '5512345678',
+    ])->assertForbidden();
+    $this->put(route('clientes.update', $cliente), [
+        'nombre' => 'No autorizado',
+        'apellido' => $cliente->apellido,
+        'telefono' => $cliente->telefono,
+    ])->assertForbidden();
+    $this->post(route('vehiculos.store'), [
+        'id_cliente' => $cliente->id_cliente,
+        'marca' => 'No autorizada',
+        'modelo' => 'Administrador',
+        'anio' => 2024,
+    ])->assertForbidden();
+    $this->put(route('vehiculos.update', $vehiculo), [
+        'id_cliente' => $vehiculo->id_cliente,
+        'marca' => 'No autorizada',
+        'modelo' => $vehiculo->modelo,
+        'anio' => $vehiculo->anio,
+    ])->assertForbidden();
+    $this->get(route('ordenes.create'))->assertForbidden();
+});
+
+test('only administrators can manage internal user accounts', function () {
+    $roleNames = ['recepcionista', 'mecanico'];
+
+    foreach ($roleNames as $roleName) {
+        $this->actingAs(userWithRole($roleName));
+        $this->get(route('usuarios.index'))->assertForbidden();
+        $this->get(route('usuarios.create'))->assertForbidden();
+    }
+
+    $administrator = userWithRole('administrador');
+    $this->actingAs($administrator);
+    $this->get(route('usuarios.index'))->assertOk()->assertSee('Gestión de usuarios');
+    $this->get(route('usuarios.create'))->assertOk()->assertSee('Nuevo usuario');
+});
+
+test('mechanic technical modules have no public route or administrator navigation link', function () {
     $this->actingAs(userWithRole('mecanico'));
 
-    foreach (['/usuarios', '/roles', '/diagnosticos', '/cotizaciones', '/autopartes'] as $path) {
+    $this->get('/usuarios')->assertForbidden();
+
+    foreach (['/roles', '/diagnosticos', '/cotizaciones', '/autopartes'] as $path) {
         $this->get($path)->assertNotFound();
     }
 

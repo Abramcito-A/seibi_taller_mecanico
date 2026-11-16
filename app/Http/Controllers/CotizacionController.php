@@ -5,19 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\Cotizacion;
 use App\Models\DetalleCotizacion;
 use App\Models\OrdenServicio;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class CotizacionController extends Controller
 {
     private const WORK_TYPES = ['diagnostico', 'mantenimiento', 'reparacion', 'otro'];
-
-    private const DETAIL_TYPES = ['pieza', 'servicio', 'mano_obra', 'otro'];
 
     public function index(OrdenServicio $orden): View
     {
@@ -59,7 +60,6 @@ class CotizacionController extends Controller
         $validated = $this->validateQuotation($request);
 
         $cotizacion = DB::transaction(function () use ($request, $orden, $validated): Cotizacion {
-            $totals = $this->calculateTotals($validated['detalles']);
             $cotizacion = Cotizacion::query()->create([
                 'id_orden' => $orden->id_orden,
                 'id_usuario' => $request->user()->getKey(),
@@ -67,14 +67,16 @@ class CotizacionController extends Controller
                 'titulo' => $validated['titulo'],
                 'tipo' => $validated['tipo'],
                 'descripcion' => $validated['descripcion'] ?? null,
-                'subtotal' => $this->formatMoney($totals['subtotal']),
-                'total' => $this->formatMoney($totals['total']),
+                'subtotal' => '0.00',
+                'total' => '0.00',
                 'estado' => 'borrador',
                 'decision_cliente' => 'pendiente',
                 'observaciones' => $validated['observaciones'] ?? null,
             ]);
 
-            $this->storeDetails($cotizacion, $validated['detalles']);
+            $this->syncDetails($cotizacion, $validated['detalles']);
+            $cotizacion->recalculateTotals();
+            $cotizacion->save();
 
             return $cotizacion;
         });
@@ -104,7 +106,7 @@ class CotizacionController extends Controller
             'orden' => $orden,
             'cotizacion' => $cotizacion,
             'workTypes' => self::WORK_TYPES,
-            'detailTypes' => self::DETAIL_TYPES,
+            'detailTypes' => DetalleCotizacion::CONCEPT_TYPES,
         ]);
     }
 
@@ -115,25 +117,43 @@ class CotizacionController extends Controller
         $this->ensureDraftEditable($cotizacion);
         $validated = $this->validateQuotation($request);
 
-        DB::transaction(function () use ($validated, $cotizacion): void {
-            $locked = Cotizacion::query()->lockForUpdate()->findOrFail($cotizacion->id_cotizacion);
-            abort_unless($locked->estado === 'borrador', 403);
+        $submissionKey = isset($validated['submission_token'])
+            ? 'seibi:cotizacion-update:'.$cotizacion->getKey().':'.$validated['submission_token']
+            : null;
+        if ($submissionKey !== null && ! Cache::add($submissionKey, true, now()->addHour())) {
+            return redirect()->route('cotizaciones.show', [$orden, $cotizacion])
+                ->with('info', 'Estos cambios ya se habían guardado. Se ignoró el envío repetido del formulario.');
+        }
 
-            $totals = $this->calculateTotals($validated['detalles']);
-            $locked->update([
-                'titulo' => $validated['titulo'],
-                'tipo' => $validated['tipo'],
-                'descripcion' => $validated['descripcion'] ?? null,
-                'subtotal' => $this->formatMoney($totals['subtotal']),
-                'total' => $this->formatMoney($totals['total']),
-                'observaciones' => $validated['observaciones'] ?? null,
-            ]);
+        try {
+            DB::transaction(function () use ($validated, $cotizacion): void {
+                $locked = Cotizacion::query()->lockForUpdate()->findOrFail($cotizacion->id_cotizacion);
+                abort_unless($locked->isEditableDraft(), 403, 'Solo los borradores pueden modificarse.');
 
-            DetalleCotizacion::query()
-                ->where('id_cotizacion', $locked->id_cotizacion)
-                ->delete();
-            $this->storeDetails($locked, $validated['detalles']);
-        });
+                if (isset($validated['revision']) && (int) $validated['revision'] !== $locked->revision) {
+                    throw ValidationException::withMessages([
+                        'revision' => 'La cotización cambió después de abrir este formulario (por ejemplo, se agregó una refacción en otra pestaña). Recarga la página para continuar con la versión actual.',
+                    ]);
+                }
+
+                $locked->fill([
+                    'titulo' => $validated['titulo'],
+                    'tipo' => $validated['tipo'],
+                    'descripcion' => $validated['descripcion'] ?? null,
+                    'observaciones' => $validated['observaciones'] ?? null,
+                ]);
+                $this->syncDetails($locked, $validated['detalles']);
+                $locked->recalculateTotals();
+                $locked->revision++;
+                $locked->save();
+            });
+        } catch (Throwable $exception) {
+            if ($submissionKey !== null) {
+                Cache::forget($submissionKey);
+            }
+
+            throw $exception;
+        }
 
         return redirect()->route('cotizaciones.show', [$orden, $cotizacion])
             ->with('success', 'Borrador de cotización actualizado correctamente.');
@@ -151,24 +171,37 @@ class CotizacionController extends Controller
             ->with('success', 'Borrador de cotización eliminado.');
     }
 
+    /**
+     * @return array{titulo: string, tipo: string, descripcion?: ?string, observaciones?: ?string, revision?: int, submission_token?: ?string, detalles: array<int, array<string, mixed>>}
+     */
     private function validateQuotation(Request $request): array
     {
+        $safeUrl = function (string $attribute, mixed $value, Closure $fail): void {
+            if (! DetalleCotizacion::isSafeExternalUrl($value)) {
+                $fail('Debe ser una dirección web válida que inicie con http:// o https://.');
+            }
+        };
+
         $validated = $request->validate([
             'titulo' => ['required', 'string', 'max:150'],
             'tipo' => ['required', Rule::in(self::WORK_TYPES)],
             'descripcion' => ['nullable', 'string', 'max:2000'],
             'observaciones' => ['nullable', 'string', 'max:5000'],
+            'revision' => ['sometimes', 'integer', 'min:1'],
+            'submission_token' => ['nullable', 'uuid'],
             'detalles' => ['required', 'array', 'min:1', 'max:100'],
+            'detalles.*.id_detalle' => ['nullable', 'integer', 'min:1'],
             'detalles.*.descripcion' => ['required', 'string', 'max:255'],
-            'detalles.*.tipo_concepto' => ['required', Rule::in(self::DETAIL_TYPES)],
+            'detalles.*.tipo_concepto' => ['required', Rule::in(DetalleCotizacion::CONCEPT_TYPES)],
             'detalles.*.cantidad' => ['required', 'numeric', 'min:0.01', 'max:9999.99', 'regex:/^\d+(?:\.\d{1,2})?$/'],
             'detalles.*.precio_unitario' => ['required', 'numeric', 'min:0', 'max:99999999.99', 'regex:/^\d+(?:\.\d{1,2})?$/'],
             'detalles.*.moneda' => ['nullable', Rule::in(['MXN'])],
             'detalles.*.tienda_origen' => ['nullable', 'string', 'max:150'],
             'detalles.*.marca' => ['nullable', 'string', 'max:100'],
+            'detalles.*.fabricante' => ['nullable', 'string', 'max:150'],
             'detalles.*.numero_parte' => ['nullable', 'string', 'max:100'],
-            'detalles.*.url_origen' => ['nullable', 'url:http,https', 'max:2000'],
-            'detalles.*.imagen_url' => ['nullable', 'url:http,https', 'max:2000'],
+            'detalles.*.url_origen' => ['nullable', 'string', 'max:2000', $safeUrl],
+            'detalles.*.imagen_url' => ['nullable', 'string', 'max:2000', $safeUrl],
         ], [
             'detalles.required' => 'Agrega al menos un concepto a la cotización.',
             'detalles.min' => 'Agrega al menos un concepto a la cotización.',
@@ -198,71 +231,68 @@ class CotizacionController extends Controller
     }
 
     /**
+     * Sincroniza los conceptos por id_detalle: actualiza los existentes, crea los nuevos y elimina los que
+     * el mecánico quitó. La instantánea del proveedor de los conceptos existentes se conserva desde la base
+     * de datos; nunca se toma del formulario.
+     *
      * @param  array<int, array<string, mixed>>  $details
-     * @return array{subtotal: int, total: int}
      */
-    private function calculateTotals(array $details): array
+    private function syncDetails(Cotizacion $cotizacion, array $details): void
     {
-        $subtotalCents = 0;
+        $existing = $cotizacion->detalles()->lockForUpdate()->get()->keyBy('id_detalle');
+        $keptIds = [];
 
-        foreach ($details as $detail) {
-            $quantityHundredths = $this->decimalToHundredths((string) $detail['cantidad']);
-            $priceHundredths = $this->decimalToHundredths((string) $detail['precio_unitario']);
-            $product = $quantityHundredths * $priceHundredths;
-            $lineCents = intdiv($product, 100);
-            if (($product % 100) >= 50) {
-                $lineCents++;
+        foreach ($details as $index => $detail) {
+            $attributes = $this->editableDetailAttributes($detail);
+            $detailId = isset($detail['id_detalle']) ? (int) $detail['id_detalle'] : null;
+
+            if ($detailId === null) {
+                $cotizacion->detalles()->create($attributes + ['moneda' => 'MXN']);
+
+                continue;
             }
-            $subtotalCents += $lineCents;
+
+            $model = $existing->get($detailId);
+            if ($model === null || in_array($detailId, $keptIds, true)) {
+                throw ValidationException::withMessages([
+                    "detalles.$index.id_detalle" => 'El concepto no pertenece a esta cotización o está repetido. Recarga la página.',
+                ]);
+            }
+
+            $model->update($attributes);
+            $keptIds[] = $detailId;
         }
 
-        return ['subtotal' => $subtotalCents, 'total' => $subtotalCents];
-    }
-
-    private function decimalToHundredths(string $value): int
-    {
-        $value = trim($value);
-        [$whole, $fraction] = array_pad(explode('.', $value, 2), 2, '');
-        $fraction = str_pad(substr($fraction, 0, 2), 2, '0');
-
-        return ((int) $whole * 100) + (int) $fraction;
-    }
-
-    private function formatMoney(int $cents): string
-    {
-        return number_format($cents / 100, 2, '.', '');
+        $removedIds = $existing->keys()->diff($keptIds)->all();
+        if ($removedIds !== []) {
+            DetalleCotizacion::query()->whereIn('id_detalle', $removedIds)->delete();
+        }
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $details
+     * @param  array<string, mixed>  $detail
+     * @return array<string, mixed>
      */
-    private function storeDetails(Cotizacion $cotizacion, array $details): void
+    private function editableDetailAttributes(array $detail): array
     {
-        foreach ($details as $detail) {
-            $quantityHundredths = $this->decimalToHundredths((string) $detail['cantidad']);
-            $priceHundredths = $this->decimalToHundredths((string) $detail['precio_unitario']);
-            $quantity = $this->formatMoney($quantityHundredths);
-            $price = $this->formatMoney($priceHundredths);
-            $product = $quantityHundredths * $priceHundredths;
-            $lineCents = intdiv($product, 100);
-            if (($product % 100) >= 50) {
-                $lineCents++;
-            }
+        $quantityHundredths = DetalleCotizacion::decimalToHundredths((string) $detail['cantidad']);
+        $priceHundredths = DetalleCotizacion::decimalToHundredths((string) $detail['precio_unitario']);
+        $quantity = DetalleCotizacion::formatHundredths($quantityHundredths);
+        $price = DetalleCotizacion::formatHundredths($priceHundredths);
 
-            $cotizacion->detalles()->create([
-                'tipo_concepto' => $detail['tipo_concepto'],
-                'descripcion' => $detail['descripcion'],
-                'cantidad' => $quantity,
-                'precio_unitario' => $price,
-                'importe' => $this->formatMoney($lineCents),
-                'moneda' => $detail['moneda'] ?? 'MXN',
-                'tienda_origen' => $detail['tienda_origen'] ?? null,
-                'marca' => $detail['marca'] ?? null,
-                'numero_parte' => $detail['numero_parte'] ?? null,
-                'url_origen' => $detail['url_origen'] ?? null,
-                'imagen_url' => $detail['imagen_url'] ?? null,
-            ]);
-        }
+        return [
+            'tipo_concepto' => $detail['tipo_concepto'],
+            'descripcion' => $detail['descripcion'],
+            'cantidad' => $quantity,
+            'precio_unitario' => $price,
+            'importe' => DetalleCotizacion::formatHundredths(DetalleCotizacion::lineAmountCents($quantity, $price)),
+            'tienda_origen' => $detail['tienda_origen'] ?? null,
+            'marca' => $detail['marca'] ?? null,
+            'fabricante' => $detail['fabricante'] ?? null,
+            'numero_parte' => $detail['numero_parte'] ?? null,
+            'url_origen' => $detail['url_origen'] ?? null,
+            'imagen_url' => $detail['imagen_url'] ?? null,
+        ];
     }
 
     private function generateFolio(): string
@@ -276,6 +306,6 @@ class CotizacionController extends Controller
 
     private function ensureDraftEditable(Cotizacion $cotizacion): void
     {
-        abort_unless($cotizacion->estado === 'borrador', 403, 'Solo los borradores pueden modificarse.');
+        abort_unless($cotizacion->isEditableDraft(), 403, 'Solo los borradores pueden modificarse.');
     }
 }

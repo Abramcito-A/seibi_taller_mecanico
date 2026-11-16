@@ -24,6 +24,7 @@ class DashboardController extends Controller
             'clients' => Cliente::query()->count(),
             'vehicles' => Vehiculo::query()->count(),
         ];
+        $orders = collect();
 
         if ($roleName === 'administrador') {
             $counts['orders'] = OrdenServicio::query()->count();
@@ -39,11 +40,17 @@ class DashboardController extends Controller
         if ($roleName === 'recepcionista') {
             $counts['receivedOrders'] = OrdenServicio::query()->where('estado', 'recibida')->count();
             $counts['readyForDelivery'] = OrdenServicio::query()->where('estado', 'lista_entrega')->count();
+            $orders = OrdenServicio::query()
+                ->with(['vehiculo.cliente'])
+                ->latest('fecha_ingreso')
+                ->limit(10)
+                ->get();
         }
 
         return view('dashboard', [
             'roleName' => $roleName,
             'counts' => $counts,
+            'orders' => $orders,
         ]);
     }
 }

@@ -4,7 +4,7 @@
 
 @section('content')
     <x-ui.page-header title="Clientes" description="Consulta y administra la información de las personas atendidas por el taller.">
-        @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+        @if (auth()->user()->hasRole('recepcionista'))
             <x-slot:actions><x-ui.button :href="route('clientes.create')" icon="plus">Nuevo cliente</x-ui.button></x-slot:actions>
         @endif
     </x-ui.page-header>
@@ -20,7 +20,7 @@
     <x-ui.panel padding="p-0">
         @if ($clientes->isEmpty())
             <x-ui.empty-state title="No se encontraron clientes" :description="request('q') ? 'Prueba con otros términos de búsqueda.' : 'Registra el primer cliente para comenzar a organizar el trabajo del taller.'" icon="users">
-                @if (! request('q') && auth()->user()->hasRole('administrador', 'recepcionista'))
+                @if (! request('q') && auth()->user()->hasRole('recepcionista'))
                     <x-slot:action><x-ui.button :href="route('clientes.create')" icon="plus">Registrar cliente</x-ui.button></x-slot:action>
                 @endif
             </x-ui.empty-state>
@@ -52,15 +52,8 @@
                                 <div class="flex items-center justify-end gap-3 whitespace-nowrap">
                                     <a href="{{ route('clientes.show', $cliente) }}"
                                        class="text-sm font-semibold text-seibi-navy hover:underline">Ver</a>
-                                    @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+                                    @if (auth()->user()->hasRole('recepcionista'))
                                         <a href="{{ route('clientes.edit', $cliente) }}" class="text-sm font-semibold text-slate-600 hover:text-seibi-ink hover:underline">Editar</a>
-                                    @endif
-                                    @if (auth()->user()->hasRole('administrador'))
-                                        <form id="delete-cliente-{{ $cliente->id_cliente }}" method="POST" action="{{ route('clientes.destroy', $cliente) }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <x-ui.confirm-trigger :form-id="'delete-cliente-' . $cliente->id_cliente" title="Eliminar cliente" :message="'¿Deseas eliminar a ' . $cliente->nombre . ' ' . $cliente->apellido . '? Esta acción no se puede deshacer.'" variant="destructive-link" size="compact">Eliminar</x-ui.confirm-trigger>
-                                        </form>
                                     @endif
                                 </div>
                             </td>
@@ -82,4 +75,3 @@
         <x-ui.badge>{{ $clientes->total() }} {{ $clientes->total() === 1 ? 'cliente encontrado' : 'clientes encontrados' }}</x-ui.badge>
     </div>
 @endsection
-

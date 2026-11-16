@@ -4,6 +4,11 @@
         @if ($method !== 'POST')
             @method($method)
         @endif
+        @isset($cotizacion)
+            <input type="hidden" name="revision" value="{{ old('revision', $cotizacion->revision ?? 1) }}" data-revision-input>
+        @endisset
+        <input type="hidden" name="submission_token" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+        @error('revision')<x-ui.alert variant="error">{{ $message }}</x-ui.alert>@enderror
 
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
@@ -48,8 +53,11 @@
                 <x-ui.button type="button" variant="secondary" icon="search" data-search-parts>Buscar ofertas</x-ui.button>
             </div>
             <p class="mt-3 hidden text-sm text-slate-600" data-search-status role="status" aria-live="polite"></p>
-            <p class="mt-3 hidden text-xs text-amber-800" data-search-warning>Confirma manualmente que la pieza sea compatible antes de autorizar el presupuesto.</p>
+            <p class="mt-2 hidden text-xs text-slate-500" data-search-summary></p>
+            <p class="mt-3 hidden text-xs text-amber-800" data-search-warning>La compatibilidad nunca se confirma automáticamente: el proveedor no entrega datos de aplicación vehicular. Verifica número de parte o aplicación antes de autorizar el presupuesto.</p>
             <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-search-results></div>
+            <button type="button" class="mt-3 hidden text-xs font-semibold text-seibi-navy hover:underline" data-toggle-uncertain></button>
+            <div class="mt-3 hidden grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-uncertain-results></div>
         </div>
 
         <div>
@@ -63,13 +71,9 @@
                 @php
                     $oldDetails = old('detalles');
                     if ($oldDetails === null && isset($cotizacion)) {
-                        $oldDetails = $cotizacion->detalles->map(fn ($detail) => $detail->only(['tipo_concepto','descripcion','cantidad','precio_unitario','moneda','tienda_origen','marca','numero_parte','url_origen','imagen_url']))->all();
+                        $oldDetails = $cotizacion->detalles->map(fn ($detail) => $detail->only(['id_detalle', 'proveedor', ...\App\Models\DetalleCotizacion::EDITABLE_FIELDS]))->all();
                     }
-                    $oldDetails = $oldDetails ?: [[
-                        'tipo_concepto' => 'pieza', 'descripcion' => '', 'cantidad' => '1.00',
-                        'precio_unitario' => '0.00', 'moneda' => 'MXN', 'tienda_origen' => '',
-                        'marca' => '', 'numero_parte' => '', 'url_origen' => '', 'imagen_url' => '',
-                    ]];
+                    $oldDetails = $oldDetails ?: [['tipo_concepto' => 'pieza', 'descripcion' => '', 'cantidad' => '1.00', 'precio_unitario' => '0.00']];
                 @endphp
                 @foreach ($oldDetails as $index => $detail)
                     @include('cotizaciones._detail-row', ['detail' => $detail, 'index' => $index])
@@ -92,13 +96,13 @@
 
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <x-ui.button :href="$cancelUrl" variant="neutral">Cancelar</x-ui.button>
-            <x-ui.button type="submit" icon="save">{{ $submitLabel }}</x-ui.button>
+            <x-ui.button type="submit" icon="save" data-submit-quotation>{{ $submitLabel }}</x-ui.button>
         </div>
     </form>
 </x-ui.card>
 
 <template data-detail-template>
-    @include('cotizaciones._detail-row', ['detail' => ['tipo_concepto'=>'pieza','descripcion'=>'','cantidad'=>'1.00','precio_unitario'=>'0.00','moneda'=>'MXN','tienda_origen'=>'','marca'=>'','numero_parte'=>'','url_origen'=>'','imagen_url'=>''], 'index' => '__INDEX__'])
+    @include('cotizaciones._detail-row', ['detail' => ['tipo_concepto' => 'pieza', 'descripcion' => '', 'cantidad' => '1.00', 'precio_unitario' => '0.00'], 'index' => '__INDEX__'])
 </template>
 
 <script>
@@ -121,7 +125,7 @@
             if (type.value === 'mano_obra') {
                 label.textContent = 'Horas';
                 quantity.min = '0.01';
-                quantity.step = '0.25';
+                quantity.step = '0.01';
             } else {
                 label.textContent = 'Cantidad';
                 quantity.min = '1';
@@ -131,18 +135,57 @@
                 }
             }
         };
-        const recalculate = () => {
-            let subtotal = 0;
-            list.querySelectorAll('[data-detail-row]').forEach(row => {
-                const quantity = Number.parseFloat(row.querySelector('[name$="[cantidad]"]').value) || 0;
-                const price = Number.parseFloat(row.querySelector('[name$="[precio_unitario]"]').value) || 0;
-                const amount = quantity * price;
-                row.querySelector('[data-line-total]').textContent = money(amount);
-                subtotal += amount;
-            });
-            form.querySelector('[data-subtotal]').textContent = money(subtotal).replace('MX$', '$').replace('MXN', '') + ' MXN';
-            form.querySelector('[data-total]').textContent = money(subtotal).replace('MX$', '$').replace('MXN', '') + ' MXN';
+        // Mismo cálculo que el servidor: centésimas enteras y redondeo half-up al centavo.
+        const hundredths = value => {
+            const [whole, fraction = ''] = String(value || '0').trim().split('.');
+            return (Number.parseInt(whole, 10) || 0) * 100 + (Number.parseInt((fraction + '00').slice(0, 2), 10) || 0);
         };
+        const lineCents = (quantity, price) => {
+            const product = hundredths(quantity) * hundredths(price);
+            return Math.floor(product / 100) + ((product % 100) >= 50 ? 1 : 0);
+        };
+        const formatTotal = cents => money(cents / 100).replace('MX$', '$').replace('MXN', '') + ' MXN';
+        const recalculate = () => {
+            let subtotalCents = 0;
+            list.querySelectorAll('[data-detail-row]').forEach(row => {
+                const cents = lineCents(row.querySelector('[name$="[cantidad]"]').value, row.querySelector('[name$="[precio_unitario]"]').value);
+                row.querySelector('[data-line-total]').textContent = money(cents / 100);
+                subtotalCents += cents;
+            });
+            form.querySelector('[data-subtotal]').textContent = formatTotal(subtotalCents);
+            form.querySelector('[data-total]').textContent = formatTotal(subtotalCents);
+        };
+        const isBlankRow = row => !row.dataset.detailId
+            && row.querySelector('[name$="[descripcion]"]').value.trim() === ''
+            && hundredths(row.querySelector('[name$="[precio_unitario]"]').value) === 0;
+        const insertRow = html => {
+            list.querySelectorAll('[data-detail-row]').forEach(row => { if (isBlankRow(row)) row.remove(); });
+            list.insertAdjacentHTML('beforeend', html.replaceAll('__INDEX__', String(nextIndex++)));
+            adjustQuantityInput(list.lastElementChild);
+            recalculate();
+        };
+
+        list.querySelectorAll('[data-detail-row]').forEach(adjustQuantityInput);
+
+        const submitButton = form.querySelector('[data-submit-quotation]');
+        form.addEventListener('submit', event => {
+            if (form.dataset.submitting === '1') {
+                event.preventDefault();
+                return;
+            }
+            form.dataset.submitting = '1';
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.setAttribute('aria-busy', 'true');
+            }
+        });
+        window.addEventListener('pageshow', () => {
+            form.dataset.submitting = '0';
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.removeAttribute('aria-busy');
+            }
+        });
 
         form.addEventListener('input', recalculate);
         form.addEventListener('change', event => {
@@ -153,8 +196,7 @@
         });
         form.addEventListener('click', event => {
             if (event.target.closest('[data-add-detail]')) {
-                const html = template.innerHTML.replaceAll('__INDEX__', String(nextIndex++));
-                list.insertAdjacentHTML('beforeend', html);
+                list.insertAdjacentHTML('beforeend', template.innerHTML.replaceAll('__INDEX__', String(nextIndex++)));
                 adjustQuantityInput(list.lastElementChild);
                 recalculate();
             }
@@ -173,6 +215,27 @@
             const status = searchPanel.querySelector('[data-search-status]');
             const warning = searchPanel.querySelector('[data-search-warning]');
             const results = searchPanel.querySelector('[data-search-results]');
+            const uncertainResults = searchPanel.querySelector('[data-uncertain-results]');
+            const toggleUncertain = searchPanel.querySelector('[data-toggle-uncertain]');
+            const summary = searchPanel.querySelector('[data-search-summary]');
+            const revisionInput = form.querySelector('[data-revision-input]');
+            const badge = (text, tone) => {
+                const element = document.createElement('p');
+                const tones = {
+                    success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                    warning: 'border-amber-200 bg-amber-50 text-amber-800',
+                    neutral: 'border-slate-200 bg-slate-50 text-slate-600',
+                };
+                element.className = `mt-2 rounded-md border px-2 py-1 text-xs ${tones[tone] || tones.neutral}`;
+                element.textContent = text;
+                return element;
+            };
+            toggleUncertain.addEventListener('click', () => {
+                const hidden = uncertainResults.classList.toggle('hidden');
+                toggleUncertain.textContent = hidden
+                    ? `Mostrar ${uncertainResults.childElementCount} resultado(s) sin evidencia automotriz`
+                    : 'Ocultar resultados sin evidencia automotriz';
+            });
 
             searchPanel.querySelector('[data-search-parts]').addEventListener('click', async () => {
                 const query = searchInput.value.trim();
@@ -186,17 +249,32 @@
                 status.textContent = 'Consultando ofertas...';
                 status.classList.remove('hidden');
                 warning.classList.add('hidden');
+                summary.classList.add('hidden');
+                toggleUncertain.classList.add('hidden');
+                uncertainResults.classList.add('hidden');
                 results.replaceChildren();
+                uncertainResults.replaceChildren();
 
                 try {
                     const response = await fetch(`${searchUrl}?q=${encodeURIComponent(query)}&mode=${encodeURIComponent(mode)}`, {
                         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                     });
                     const payload = await response.json();
-                    status.textContent = payload.message || (payload.status === 'success' ? `Consulta: ${payload.query}` : '');
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No fue posible consultar el proveedor comercial.');
+                    }
+                    const adjusted = payload.query && payload.attempted_queries?.length && payload.query !== payload.attempted_queries[0]
+                        ? ` (se ajustó porque "${payload.attempted_queries[0]}" no devolvió resultados)`
+                        : '';
+                    status.textContent = payload.message || (payload.status === 'success' ? `Consulta enviada al proveedor: ${payload.query}${adjusted}` : '');
+
+                    if (payload.summary && payload.summary.received > 0) {
+                        summary.textContent = `${payload.summary.received} resultados del proveedor: ${payload.summary.automotive} automotrices, `
+                            + `${payload.summary.uncertain} sin evidencia suficiente (ocultos) y ${payload.summary.excluded} descartados por no ser automotrices.`;
+                        summary.classList.remove('hidden');
+                    }
 
                     if (payload.status !== 'success' || !Array.isArray(payload.offers)) {
-                        warning.classList.remove('hidden');
                         return;
                     }
 
@@ -242,6 +320,16 @@
                             card.appendChild(partNumber);
                         }
 
+                        // ── Relevancia y compatibilidad (nunca se marca como confirmada) ─────────
+                        if (offer.relevance?.status === 'uncertain') {
+                            card.appendChild(badge('Sin evidencia automotriz suficiente en la publicación.', 'neutral'));
+                        }
+                        if (offer.compatibility) {
+                            const tone = offer.compatibility.status === 'mentioned' ? 'success'
+                                : (offer.compatibility.status === 'conflict' ? 'warning' : 'neutral');
+                            card.appendChild(badge(offer.compatibility.label, tone));
+                        }
+
                         // ── Precio ──────────────────────────────────────────────────────────────
                         const price = document.createElement('p');
                         price.className = 'mt-2 text-sm font-bold text-seibi-navy';
@@ -256,11 +344,20 @@
                             link.target = '_blank';
                             link.rel = 'noopener noreferrer';
                             link.className = 'mt-2 text-xs font-semibold text-seibi-navy hover:underline';
-                            link.textContent = offer.url.includes('google.com/shopping')
-                                ? 'Enlace de consulta de Google Shopping'
-                                : 'Ver publicación del comercio';
+                            link.textContent = 'Ver publicación del comercio';
                             card.appendChild(link);
                             publicationLink = link;
+                        }
+
+                        // ── Ficha de Google Shopping (no es la publicación del comercio) ─────────
+                        if (offer.shopping_url) {
+                            const shoppingLink = document.createElement('a');
+                            shoppingLink.href = offer.shopping_url;
+                            shoppingLink.target = '_blank';
+                            shoppingLink.rel = 'noopener noreferrer';
+                            shoppingLink.className = 'mt-1 text-xs text-slate-500 hover:underline';
+                            shoppingLink.textContent = 'Ver en Google Shopping';
+                            card.appendChild(shoppingLink);
                         }
 
                         // ── Botón "Ver detalles técnicos" ───────────────────────────────────────
@@ -283,6 +380,7 @@
                                 detailsPanel.appendChild(paragraph);
                             };
                             if (source.brand) appendParagraph('Marca', source.brand);
+                            if (source.manufacturer) appendParagraph('Fabricante', source.manufacturer);
                             if (source.part_number) appendParagraph('Número de parte', source.part_number);
                             if (source.store_name) appendParagraph('Comercio', source.store_name);
 
@@ -307,9 +405,8 @@
                                 detailsPanel.append(heading, ul);
                             };
                             const td = source.technical_details || {};
+                            if (td.description) appendParagraph('Descripción', td.description);
                             appendTechnicalList(td.features, 'Características');
-                            appendTechnicalList(td.specifications, 'Especificaciones');
-                            appendTechnicalList(td.compatibility, 'Compatibilidad');
                             if (detailsPanel.childElementCount === 0) {
                                 const empty = document.createElement('p');
                                 empty.textContent = 'El proveedor no proporcionó detalles técnicos adicionales.';
@@ -370,9 +467,7 @@
                                         card.insertBefore(publicationLink, detailsButton);
                                     }
                                     publicationLink.href = enriched.url;
-                                    publicationLink.textContent = enriched.url.includes('google.com/shopping')
-                                        ? 'Enlace de consulta de Google Shopping'
-                                        : 'Ver publicación del comercio';
+                                    publicationLink.textContent = 'Ver publicación del comercio';
                                 }
 
                                 populateDetailsPanel(enriched);
@@ -438,7 +533,12 @@
                                 status.textContent = result.message;
                                 status.classList.remove('hidden');
                                 button.textContent = 'Agregada';
-                                window.location.href = result.redirect_url;
+                                if (revisionInput && result.revision) {
+                                    revisionInput.value = result.revision;
+                                }
+                                if (result.row_html && !list.querySelector(`[data-detail-id="${result.detail_id}"]`)) {
+                                    insertRow(result.row_html);
+                                }
                             } catch (error) {
                                 button.disabled = false;
                                 button.textContent = 'Agregar a cotización';
@@ -447,10 +547,14 @@
                             }
                         });
                         card.appendChild(button);
-                        results.appendChild(card);
+                        (offer.relevance?.status === 'uncertain' ? uncertainResults : results).appendChild(card);
                     });
+                    if (uncertainResults.childElementCount > 0) {
+                        toggleUncertain.textContent = `Mostrar ${uncertainResults.childElementCount} resultado(s) sin evidencia automotriz`;
+                        toggleUncertain.classList.remove('hidden');
+                    }
                 } catch (error) {
-                    status.textContent = 'No fue posible consultar el proveedor comercial.';
+                    status.textContent = error.message || 'No fue posible consultar el proveedor comercial.';
                     status.classList.remove('hidden');
                 }
             });

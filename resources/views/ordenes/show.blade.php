@@ -20,17 +20,17 @@
             'historial' => 'Historial',
         ];
         $recepcionEvidencias = $orden->evidencias->where('etapa', 'recepcion');
-        $todasEvidencias = $orden->evidencias->whereIn('etapa', ['recepcion', 'diagnostico']);
+        $todasEvidencias = $orden->evidencias->whereIn('etapa', ['recepcion', 'diagnostico', 'reparacion', 'entrega']);
     @endphp
 
     <x-ui.page-header :title="$orden->folio" :description="'Ingreso '.$orden->fecha_ingreso->format('d/m/Y · H:i')">
         <x-slot:actions>
             <x-ui.badge :tone="$statusTones[$orden->estado] ?? 'neutral'">{{ $statusLabels[$orden->estado] ?? $orden->estado }}</x-ui.badge>
             <x-ui.back-button :fallback="route('ordenes.index')" />
-            @if ($orden->estado === 'recibida' && auth()->user()->hasRole('administrador', 'recepcionista'))
+            @if ($orden->estado === 'recibida' && auth()->user()->hasRole('recepcionista'))
                 <x-ui.button :href="route('ordenes.edit', $orden)" variant="secondary">Corregir recepción</x-ui.button>
             @endif
-            @if ($orden->estado === 'recibida' && auth()->user()->hasRole('administrador', 'mecanico'))
+            @if ($orden->estado === 'recibida' && auth()->user()->hasRole('mecanico'))
                 <form method="POST" action="{{ route('ordenes.iniciar-diagnostico', $orden) }}">
                     @csrf
                     <x-ui.button type="submit" icon="wrench">Iniciar diagnóstico</x-ui.button>
@@ -88,6 +88,24 @@
                 <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Problema reportado</dt><dd class="mt-1 whitespace-pre-line text-sm leading-6 text-seibi-ink">{{ $orden->descripcion_problema }}</dd></div>
                 <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Observaciones</dt><dd class="mt-1 whitespace-pre-line text-sm text-seibi-ink">{{ $orden->observaciones ?: '—' }}</dd></div>
             </dl>
+            <div class="mt-5 border-t border-seibi-border pt-5">
+                <h3 class="text-sm font-semibold text-seibi-ink">Fotografías iniciales</h3>
+                @if ($recepcionEvidencias->isEmpty())
+                    <p class="mt-2 text-sm text-slate-500">No hay fotografías registradas para esta recepción.</p>
+                @else
+                    <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        @foreach ($recepcionEvidencias as $photo)
+                            <a href="{{ route('ordenes.evidencias.show', [$orden, $photo]) }}" target="_blank" rel="noopener" class="overflow-hidden rounded-lg border border-seibi-border bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seibi-navy">
+                                <img src="{{ route('ordenes.evidencias.show', [$orden, $photo]) }}" alt="{{ $photo->nombre_archivo }}" loading="lazy" class="aspect-[4/3] w-full object-cover">
+                                <span class="block px-2 py-2">
+                                    <span class="block truncate text-xs font-medium text-seibi-ink">{{ $photo->nombre_archivo }}</span>
+                                    <span class="mt-0.5 block text-[0.6875rem] text-slate-500">{{ $photo->fecha_creacion?->format('d/m/Y H:i') }} · {{ $photo->usuario?->name ?? 'Usuario no disponible' }}</span>
+                                </span>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
         </x-ui.panel>
     @endif
 
@@ -111,12 +129,12 @@
                     <input type="hidden" name="seccion" value="diagnosticos">
                     <x-ui.button type="submit" variant="neutral">Filtrar</x-ui.button>
                 </form>
-                @if ($orden->estado === 'en_diagnostico' && auth()->user()->hasRole('administrador', 'mecanico'))
+                @if ($orden->estado === 'en_diagnostico' && auth()->user()->hasRole('mecanico'))
                     <x-ui.button :href="route('diagnosticos.create', $orden)" icon="plus">Agregar hallazgo</x-ui.button>
                 @endif
             </div>
 
-            @if (session('new_diagnosis_created'))
+            @if (session('new_diagnosis_created') && auth()->user()->hasRole('mecanico'))
                 <div class="mb-4 flex justify-end">
                     <x-ui.button :href="route('diagnosticos.create', $orden)" icon="plus" variant="secondary">Agregar otro hallazgo</x-ui.button>
                 </div>
@@ -140,7 +158,7 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <x-ui.badge :tone="$tones[$diagnostico->severidad] ?? 'neutral'">{{ ucfirst($diagnostico->severidad) }}</x-ui.badge>
-                                    @if (! in_array($orden->estado,['cerrada','cancelada'],true) && auth()->user()->hasRole('administrador','mecanico'))
+                                    @if (! in_array($orden->estado,['cerrada','cancelada'],true) && auth()->user()->hasRole('mecanico'))
                                         <x-ui.button :href="route('diagnosticos.edit',[$orden,$diagnostico])" variant="neutral">Editar</x-ui.button>
                                     @endif
                                 </div>

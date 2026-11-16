@@ -52,7 +52,7 @@ test('reception limits the number of uploaded photos', function () {
     Storage::fake('private');
     $cliente = Cliente::factory()->create();
     $vehiculo = Vehiculo::factory()->create(['id_cliente' => $cliente->id_cliente]);
-    $photos = collect(range(1, 6))
+    $photos = collect(range(1, 11))
         ->map(fn (int $number) => UploadedFile::fake()->image("photo-{$number}.jpg"))
         ->all();
 
@@ -62,7 +62,7 @@ test('reception limits the number of uploaded photos', function () {
             ...makeOrderReceptionPayload($cliente, $vehiculo),
             'fotografias' => $photos,
         ])
-        ->assertSessionHasErrors('fotografias');
+        ->assertSessionHasErrors(['fotografias' => 'Puedes adjuntar hasta 10 fotografías.']);
 
     $this->assertDatabaseCount('ordenes_servicio', 0);
     expect(Storage::disk('private')->allFiles())->toBeEmpty();
@@ -118,7 +118,7 @@ test('reception form lists only vehicles for the selected customer', function ()
 test('each new reception gets a unique server-generated folio', function () {
     $cliente = Cliente::factory()->create();
     $vehiculo = Vehiculo::factory()->create(['id_cliente' => $cliente->id_cliente]);
-    $this->actingAs(orderModuleUser('administrador'));
+    $this->actingAs(orderModuleUser('recepcionista'));
 
     $this->post(route('ordenes.store'), makeOrderReceptionPayload($cliente, $vehiculo))->assertRedirect();
     $this->post(route('ordenes.store'), makeOrderReceptionPayload($cliente, $vehiculo))->assertRedirect();
@@ -161,16 +161,28 @@ test('orders can be searched by folio client vehicle and plates and filtered by 
         ->assertDontSee($orden->folio);
 });
 
-test('administrators can create and start an order using the available workflow', function () {
+test('reception creates and a mechanic starts an order while administrators only consult it', function () {
     $cliente = Cliente::factory()->create();
     $vehiculo = Vehiculo::factory()->create(['id_cliente' => $cliente->id_cliente]);
-    $this->actingAs(orderModuleUser('administrador'));
+    $administrador = orderModuleUser('administrador');
 
-    $this->post(route('ordenes.store'), makeOrderReceptionPayload($cliente, $vehiculo))
+    $this->actingAs($administrador)
+        ->post(route('ordenes.store'), makeOrderReceptionPayload($cliente, $vehiculo))
+        ->assertForbidden();
+    $this->assertDatabaseCount('ordenes_servicio', 0);
+
+    $this->actingAs(orderModuleUser('recepcionista'))
+        ->post(route('ordenes.store'), makeOrderReceptionPayload($cliente, $vehiculo))
         ->assertRedirect();
-
     $orden = OrdenServicio::query()->firstOrFail();
-    $this->post(route('ordenes.iniciar-diagnostico', $orden))
+
+    $this->actingAs($administrador)
+        ->post(route('ordenes.iniciar-diagnostico', $orden))
+        ->assertForbidden();
+    $this->actingAs($administrador)->get(route('ordenes.show', $orden))->assertOk();
+
+    $this->actingAs(orderModuleUser('mecanico'))
+        ->post(route('ordenes.iniciar-diagnostico', $orden))
         ->assertRedirect(route('ordenes.show', $orden));
 
     expect($orden->fresh()->estado)->toBe('en_diagnostico');
@@ -282,6 +294,75 @@ test('evidence routes reject stored paths containing traversal segments', functi
     $this->actingAs(orderModuleUser('mecanico'))
         ->get(route('ordenes.evidencias.show', [$orden, $evidencia]))
         ->assertNotFound();
+});
+
+test('evidence cannot reach a file of another order through relative path segments', function () {
+    Storage::fake('private');
+    $orden = OrdenServicio::factory()->create();
+    $otraOrden = OrdenServicio::factory()->create();
+    $archivoAjeno = 'ordenes/'.$otraOrden->id_orden.'/recepcion/0f8e2c1a-3b4d-4e5f-8a9b-0c1d2e3f4a5b.jpg';
+    Storage::disk('private')->put($archivoAjeno, 'imagen de otra orden');
+    $evidencia = Evidencia::factory()->create([
+        'id_orden' => $orden->id_orden,
+        'ruta_archivo' => 'ordenes/'.$orden->id_orden.'/recepcion/../../'.$otraOrden->id_orden.'/recepcion/0f8e2c1a-3b4d-4e5f-8a9b-0c1d2e3f4a5b.jpg',
+        'etapa' => Evidencia::ETAPA_RECEPCION,
+    ]);
+
+    $this->actingAs(orderModuleUser('mecanico'))
+        ->get(route('ordenes.evidencias.show', [$orden, $evidencia]))
+        ->assertNotFound();
+});
+
+test('receptionists can consult diagnostic evidence but cannot create or change it', function () {
+    Storage::fake('private');
+    $orden = OrdenServicio::factory()->create(['estado' => 'en_diagnostico']);
+    $this->actingAs(orderModuleUser('mecanico'))->post(route('diagnosticos.store', $orden), [
+        'titulo' => 'Balatas delanteras',
+        'descripcion' => 'Desgaste avanzado.',
+        'severidad' => 'alta',
+        'envio_uuid' => (string) Str::uuid(),
+        'fotografias' => [UploadedFile::fake()->image('tecnica.png')],
+    ])->assertRedirect();
+    $diagnostico = $orden->diagnosticos()->firstOrFail();
+    $evidencia = Evidencia::query()->where('etapa', Evidencia::ETAPA_DIAGNOSTICO)->firstOrFail();
+    $archivosAntes = Storage::disk('private')->allFiles();
+
+    $recepcionista = orderModuleUser('recepcionista');
+    $this->actingAs($recepcionista)->get(route('ordenes.evidencias.show', [$orden, $evidencia]))->assertOk();
+    $this->actingAs($recepcionista)->get(route('diagnosticos.edit', [$orden, $diagnostico]))->assertForbidden();
+    $this->actingAs($recepcionista)->post(route('diagnosticos.store', $orden), [
+        'titulo' => 'Intento de recepción',
+        'descripcion' => 'No autorizado.',
+        'severidad' => 'media',
+        'envio_uuid' => (string) Str::uuid(),
+        'fotografias' => [UploadedFile::fake()->image('recepcion.png')],
+    ])->assertForbidden();
+    $this->actingAs($recepcionista)->put(route('diagnosticos.update', [$orden, $diagnostico]), [
+        'titulo' => 'Cambiado por recepción',
+        'descripcion' => 'No autorizado.',
+        'severidad' => 'baja',
+        'fotografias' => [UploadedFile::fake()->image('reemplazo.png')],
+    ])->assertForbidden();
+
+    expect(Evidencia::query()->where('etapa', Evidencia::ETAPA_DIAGNOSTICO)->pluck('id_evidencia')->all())->toBe([$evidencia->id_evidencia])
+        ->and($diagnostico->refresh()->titulo)->toBe('Balatas delanteras')
+        ->and(Storage::disk('private')->allFiles())->toBe($archivosAntes);
+});
+
+test('diagnostic evidence cannot be consulted from another order by changing ids or stored paths', function () {
+    Storage::fake('private');
+    $orden = OrdenServicio::factory()->create();
+    $otraOrden = OrdenServicio::factory()->create();
+    $rutaAjena = 'ordenes/'.$otraOrden->id_orden.'/diagnosticos/7/'.fake()->uuid().'.jpg';
+    Storage::disk('private')->put($rutaAjena, 'diagnostico de otra orden');
+    $evidenciaAjena = Evidencia::factory()->create(['id_orden' => $otraOrden->id_orden, 'ruta_archivo' => $rutaAjena, 'etapa' => Evidencia::ETAPA_DIAGNOSTICO]);
+    $evidenciaManipulada = Evidencia::factory()->create(['id_orden' => $orden->id_orden, 'ruta_archivo' => $rutaAjena, 'etapa' => Evidencia::ETAPA_DIAGNOSTICO]);
+
+    foreach (['recepcionista', 'mecanico', 'administrador'] as $rol) {
+        $this->actingAs(orderModuleUser($rol))->get(route('ordenes.evidencias.show', [$orden, $evidenciaAjena]))->assertNotFound();
+        $this->actingAs(orderModuleUser($rol))->get(route('ordenes.evidencias.show', [$orden, $evidenciaManipulada]))->assertNotFound();
+    }
+    $this->actingAs(orderModuleUser('recepcionista'))->get(route('ordenes.evidencias.show', [$otraOrden, $evidenciaAjena]))->assertOk();
 });
 
 test('private evidence storage is outside the Laravel-served local disk', function () {
@@ -433,7 +514,7 @@ test('diagnostic evidence and create routes reject invalid photos and unauthoriz
         ->and(Storage::disk('private')->allFiles())->toBeEmpty();
 });
 
-test('one order can keep multiple findings and diagnostic evidence is role protected', function () {
+test('one order can keep multiple findings and diagnostic evidence is visible to internal staff only', function () {
     Storage::fake('private');
     $mecanico = orderModuleUser('mecanico');
     $orden = OrdenServicio::factory()->create(['estado' => 'en_diagnostico']);
@@ -465,7 +546,11 @@ test('one order can keep multiple findings and diagnostic evidence is role prote
     $recepcionista = orderModuleUser('recepcionista');
     $this->actingAs($recepcionista)
         ->get(route('ordenes.evidencias.show', [$orden, $evidencia]))
-        ->assertForbidden();
+        ->assertOk();
+
+    auth()->logout();
+    $this->get(route('ordenes.evidencias.show', [$orden, $evidencia]))
+        ->assertRedirect(route('login'));
 
     $administrador = orderModuleUser('administrador');
     $this->actingAs($administrador)

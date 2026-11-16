@@ -21,13 +21,15 @@ class Cotizacion extends Model
 
     protected $fillable = [
         'id_orden', 'id_usuario', 'id_plantilla', 'folio', 'titulo', 'tipo', 'descripcion',
-        'subtotal', 'total', 'estado', 'decision_cliente', 'fecha_envio', 'fecha_decision', 'observaciones',
+        'subtotal', 'total', 'estado', 'revision', 'version', 'id_cotizacion_origen',
+        'decision_cliente', 'fecha_envio', 'fecha_decision', 'observaciones',
     ];
 
     protected function casts(): array
     {
         return [
             'subtotal' => 'decimal:2', 'total' => 'decimal:2',
+            'revision' => 'integer', 'version' => 'integer',
             'fecha_creacion' => 'datetime', 'fecha_envio' => 'datetime',
             'fecha_decision' => 'datetime', 'fecha_actualizacion' => 'datetime',
         ];
@@ -51,5 +53,32 @@ class Cotizacion extends Model
     public function detalles(): HasMany
     {
         return $this->hasMany(DetalleCotizacion::class, 'id_cotizacion', 'id_cotizacion');
+    }
+
+    /**
+     * Cotización de la que esta versión fue derivada (null en la versión original).
+     */
+    public function origen(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'id_cotizacion_origen', 'id_cotizacion');
+    }
+
+    public function isEditableDraft(): bool
+    {
+        return $this->estado === 'borrador';
+    }
+
+    /**
+     * Recalcula subtotal y total a partir de los importes persistidos de los conceptos, en centavos enteros.
+     * No guarda el modelo; quien llama decide cuándo persistir dentro de su transacción.
+     */
+    public function recalculateTotals(): void
+    {
+        $subtotalCents = $this->detalles()
+            ->get(['importe'])
+            ->sum(fn (DetalleCotizacion $detail): int => DetalleCotizacion::decimalToHundredths((string) $detail->importe));
+
+        $this->subtotal = DetalleCotizacion::formatHundredths($subtotalCents);
+        $this->total = DetalleCotizacion::formatHundredths($subtotalCents);
     }
 }

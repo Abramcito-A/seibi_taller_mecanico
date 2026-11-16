@@ -58,6 +58,7 @@ return new class extends Migration
         });
 
         Schema::table('evidencias', function (Blueprint $table): void {
+            $table->index('id_orden', 'evidencias_id_orden_foreign');
             $table->dropIndex('evidencias_id_orden_etapa_index');
             $table->dropColumn(['etapa', 'visible_cliente']);
         });

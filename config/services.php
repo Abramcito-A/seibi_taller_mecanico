@@ -38,6 +38,8 @@ return [
     'serpapi' => [
         'api_key' => env('SERPAPI_API_KEY'),
         'location' => env('SERPAPI_LOCATION', 'Mexico'),
+        'search_cache_minutes' => (int) env('SERPAPI_SEARCH_CACHE_MINUTES', 360),
+        'details_cache_minutes' => (int) env('SERPAPI_DETAILS_CACHE_MINUTES', 60),
     ],
 
 ];

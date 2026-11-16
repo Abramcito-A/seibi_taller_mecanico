@@ -46,7 +46,10 @@
             </x-ui.panel>
         </div>
 
-        <x-ui.alert variant="info" class="mt-5">La administración de usuarios desde pantalla todavía no está disponible. Las cuentas internas se crean con <code class="rounded bg-white/70 px-1 py-0.5">php artisan seibi:user:create</code>.</x-ui.alert>
+        <x-ui.alert variant="info" class="mt-5">
+            Administración disponible. Puedes consultar expedientes técnicos y gestionar las cuentas internas desde
+            <a href="{{ route('usuarios.index') }}" class="font-semibold underline underline-offset-2">Gestión de usuarios</a>.
+        </x-ui.alert>
     @elseif ($roleName === 'mecanico')
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <x-ui.panel title="Órdenes recibidas" description="Pendientes de iniciar diagnóstico">
@@ -118,6 +121,28 @@
             @endif
         </x-ui.panel>
 
-        <x-ui.alert variant="info" class="mt-5">Las órdenes recibidas y sus fotografías iniciales quedan disponibles en el expediente. Los diagnósticos técnicos se habilitarán en un módulo posterior.</x-ui.alert>
+        <x-ui.panel title="Órdenes recientes" description="Registro real del taller, incluyendo órdenes creadas por cualquier recepcionista" class="mt-5" padding="p-0">
+            @if ($orders->isEmpty())
+                <x-ui.empty-state title="Sin órdenes registradas" description="Las recepciones aparecerán aquí cuando se guarde una nueva orden." icon="clipboard-list" class="min-h-48" />
+            @else
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-seibi-border">
+                        <thead class="bg-seibi-workspace"><tr><th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Folio</th><th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Cliente</th><th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Vehículo</th><th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Ingreso</th><th class="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Estado</th><th class="px-4 py-3"></th></tr></thead>
+                        <tbody class="divide-y divide-seibi-border bg-white">
+                            @foreach ($orders as $order)
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-semibold text-seibi-ink">{{ $order->folio }}</td>
+                                    <td class="px-4 py-3 text-sm text-seibi-ink">{{ $order->vehiculo->cliente->nombre }} {{ $order->vehiculo->cliente->apellido }}</td>
+                                    <td class="px-4 py-3 text-sm text-slate-600">{{ $order->vehiculo->marca }} {{ $order->vehiculo->modelo }}</td>
+                                    <td class="px-4 py-3 text-sm text-slate-600">{{ $order->fecha_ingreso?->format('d/m/Y H:i') }}</td>
+                                    <td class="px-4 py-3 text-sm text-slate-600">{{ $order->estado }}</td>
+                                    <td class="px-4 py-3 text-right"><a href="{{ route('ordenes.show', $order) }}" class="text-sm font-semibold text-seibi-navy hover:underline">Expediente</a></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </x-ui.panel>
     @endif
 @endsection

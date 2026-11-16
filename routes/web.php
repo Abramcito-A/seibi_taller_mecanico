@@ -8,6 +8,7 @@ use App\Http\Controllers\DiagnosticoController;
 use App\Http\Controllers\EvidenciaController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\PartSearchController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\VehiculoController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -32,11 +33,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
         Route::get('/clientes', [ClienteController::class, 'index'])->name('clientes.index');
+        Route::get('/clientes/buscar', [ClienteController::class, 'search'])->name('clientes.search');
         Route::get('/vehiculos', [VehiculoController::class, 'index'])->name('vehiculos.index');
         Route::get('/ordenes', [OrdenServicioController::class, 'index'])->name('ordenes.index');
     });
 
-    Route::middleware('role:administrador,recepcionista')->group(function () {
+    Route::middleware('role:recepcionista')->group(function () {
         Route::get('/clientes/create', [ClienteController::class, 'create'])->name('clientes.create');
         Route::post('/clientes', [ClienteController::class, 'store'])->name('clientes.store');
         Route::get('/clientes/{cliente}/edit', [ClienteController::class, 'edit'])->name('clientes.edit');
@@ -62,7 +64,7 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('diagnosticos.submission-status');
     });
 
-    Route::middleware('role:administrador,mecanico')->group(function () {
+    Route::middleware('role:mecanico')->group(function () {
         Route::post('/ordenes/{orden}/iniciar-diagnostico', [OrdenServicioController::class, 'iniciarDiagnostico'])
             ->name('ordenes.iniciar-diagnostico');
         Route::get('/ordenes/{orden}/cotizaciones/create', [CotizacionController::class, 'create'])
@@ -101,7 +103,11 @@ Route::middleware(['auth', 'active'])->group(function () {
     });
 
     Route::middleware('role:administrador')->group(function () {
-        Route::delete('/clientes/{cliente}', [ClienteController::class, 'destroy'])->name('clientes.destroy');
-        Route::delete('/vehiculos/{vehiculo}', [VehiculoController::class, 'destroy'])->name('vehiculos.destroy');
+        Route::get('/usuarios', [UserController::class, 'index'])->name('usuarios.index');
+        Route::get('/usuarios/create', [UserController::class, 'create'])->name('usuarios.create');
+        Route::post('/usuarios', [UserController::class, 'store'])->name('usuarios.store');
+        Route::get('/usuarios/{usuario}/edit', [UserController::class, 'edit'])->name('usuarios.edit');
+        Route::match(['PUT', 'PATCH'], '/usuarios/{usuario}', [UserController::class, 'update'])->name('usuarios.update');
+        Route::patch('/usuarios/{usuario}/activo', [UserController::class, 'toggleActive'])->name('usuarios.toggle-active');
     });
 });

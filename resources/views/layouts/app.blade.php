@@ -48,13 +48,16 @@
                             </button>
                             <div id="desktop-orders-navigation" x-show="ordersOpen" x-collapse x-cloak class="mt-1 space-y-1 border-l border-white/10 py-1 pl-3 ml-3">
                                 <x-ui.nav-link href="{{ route('ordenes.index') }}" icon="list" :active="request()->routeIs('ordenes.index', 'ordenes.show', 'ordenes.edit')" class="min-h-9 px-2 py-1.5 text-xs">Todas las órdenes</x-ui.nav-link>
-                                @if (request()->user()->hasRole('administrador', 'recepcionista'))
+                                @if (request()->user()->hasRole('recepcionista'))
                                     <x-ui.nav-link href="{{ route('ordenes.create') }}" icon="plus" :active="request()->routeIs('ordenes.create')" class="min-h-9 px-2 py-1.5 text-xs">Nueva recepción</x-ui.nav-link>
                                 @endif
                             </div>
                         </div>
                         <x-ui.nav-link href="{{ route('clientes.index') }}" icon="users" :active="request()->routeIs('clientes.*')">Clientes</x-ui.nav-link>
                         <x-ui.nav-link href="{{ route('vehiculos.index') }}" icon="car-front" :active="request()->routeIs('vehiculos.*')">Vehículos</x-ui.nav-link>
+                        @if (request()->user()->hasRole('administrador'))
+                            <x-ui.nav-link href="{{ route('usuarios.index') }}" icon="user-cog" :active="request()->routeIs('usuarios.*')">Gestión de usuarios</x-ui.nav-link>
+                        @endif
                     </div>
                 </div>
             </nav>
@@ -143,13 +146,16 @@
                             </button>
                             <div id="mobile-orders-navigation" x-show="ordersOpen" x-collapse x-cloak class="mt-1 space-y-1 border-l border-white/10 py-1 pl-3 ml-3">
                                 <x-ui.nav-link href="{{ route('ordenes.index') }}" icon="list" :active="request()->routeIs('ordenes.index', 'ordenes.show', 'ordenes.edit')" class="min-h-9 px-2 py-1.5 text-xs" @click="mobileNavOpen = false">Todas las órdenes</x-ui.nav-link>
-                                @if (request()->user()->hasRole('administrador', 'recepcionista'))
+                                @if (request()->user()->hasRole('recepcionista'))
                                     <x-ui.nav-link href="{{ route('ordenes.create') }}" icon="plus" :active="request()->routeIs('ordenes.create')" class="min-h-9 px-2 py-1.5 text-xs" @click="mobileNavOpen = false">Nueva recepción</x-ui.nav-link>
                                 @endif
                             </div>
                         </div>
                         <x-ui.nav-link href="{{ route('clientes.index') }}" icon="users" :active="request()->routeIs('clientes.*')" @click="mobileNavOpen = false">Clientes</x-ui.nav-link>
                         <x-ui.nav-link href="{{ route('vehiculos.index') }}" icon="car-front" :active="request()->routeIs('vehiculos.*')" @click="mobileNavOpen = false">Vehículos</x-ui.nav-link>
+                        @if (request()->user()->hasRole('administrador'))
+                            <x-ui.nav-link href="{{ route('usuarios.index') }}" icon="user-cog" :active="request()->routeIs('usuarios.*')" @click="mobileNavOpen = false">Gestión de usuarios</x-ui.nav-link>
+                        @endif
                     </div>
                 </div>
             </nav>

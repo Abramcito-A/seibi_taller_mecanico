@@ -4,7 +4,7 @@
 
 @section('content')
     <x-ui.page-header title="Órdenes de servicio" description="Consulta las recepciones y el estado actual de cada vehículo.">
-        @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+        @if (auth()->user()->hasRole('recepcionista'))
             <x-slot:actions><x-ui.button :href="route('ordenes.create')" icon="plus">Nueva recepción</x-ui.button></x-slot:actions>
         @endif
     </x-ui.page-header>
@@ -30,7 +30,7 @@
     <x-ui.panel padding="p-0">
         @if ($ordenes->isEmpty())
             <x-ui.empty-state title="No hay órdenes para mostrar" description="Cambia los filtros o crea una nueva recepción para iniciar un expediente." icon="clipboard-list">
-                @if (auth()->user()->hasRole('administrador', 'recepcionista'))
+                @if (auth()->user()->hasRole('recepcionista'))
                     <x-slot:action><x-ui.button :href="route('ordenes.create')" icon="plus">Nueva recepción</x-ui.button></x-slot:action>
                 @endif
             </x-ui.empty-state>

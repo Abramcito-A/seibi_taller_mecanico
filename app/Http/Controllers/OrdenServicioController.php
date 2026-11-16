@@ -22,7 +22,7 @@ use Throwable;
 
 class OrdenServicioController extends Controller
 {
-    private const MAX_PHOTOS = 5;
+    private const MAX_PHOTOS = 10;
 
     private const STATUS_LABELS = [
         'recibida' => 'Recibida',
@@ -92,33 +92,13 @@ class OrdenServicioController extends Controller
 
     public function create(Request $request): View
     {
-        $search = trim((string) $request->query('q', ''));
-        $clientQuery = Cliente::query();
-
-        if ($search !== '') {
-            $pattern = '%'.$search.'%';
-            $clientQuery->where(function (Builder $clients) use ($pattern): void {
-                $clients->where('nombre', 'like', $pattern)
-                    ->orWhere('apellido', 'like', $pattern)
-                    ->orWhere('telefono', 'like', $pattern)
-                    ->orWhere('correo', 'like', $pattern);
-            });
-        }
-
         $selectedClientId = $request->integer('cliente_id') ?: null;
         $selectedClient = $selectedClientId === null
             ? null
             : Cliente::query()->with('vehiculos')->find($selectedClientId);
-        $clients = $clientQuery->orderBy('apellido')->orderBy('nombre')->limit(50)->get();
-
-        if ($selectedClient !== null && ! $clients->contains('id_cliente', $selectedClient->id_cliente)) {
-            $clients->prepend($selectedClient);
-        }
 
         return view('ordenes.create', [
-            'clientes' => $clients,
             'selectedClient' => $selectedClient,
-            'search' => $search,
             'statusLabels' => self::STATUS_LABELS,
         ]);
     }

@@ -5,12 +5,14 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\Vehiculo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
+// Clientes y vehículos los registra y edita la recepción; el administrador solo los consulta (ver RoleAccessTest).
 beforeEach(function () {
     $role = Role::query()->firstOrCreate(
-        ['nombre' => 'administrador'],
+        ['nombre' => 'recepcionista'],
         ['descripcion' => 'Rol para pruebas automatizadas.'],
     );
 
@@ -143,27 +145,21 @@ test('actualiza cliente con datos válidos', function () {
     $this->assertDatabaseHas('clientes', ['id_cliente' => $cliente->id_cliente, 'nombre' => 'Después']);
 });
 
-// ─── DESTROY ──────────────────────────────────────────────────────────────────
+// ─── ELIMINACIÓN NO PERMITIDA ──────────────────────────────────────────────────
 
-test('elimina cliente sin vehículos', function () {
+test('ningún rol puede eliminar clientes y el registro se conserva', function (string $roleName) {
+    $role = Role::query()->firstOrCreate(['nombre' => $roleName], ['descripcion' => 'Rol para pruebas automatizadas.']);
+    $this->actingAs(User::factory()->create(['id_rol' => $role->id_rol]));
     $cliente = Cliente::factory()->create();
+    Vehiculo::factory()->create(['id_cliente' => $cliente->id_cliente]);
 
-    $response = $this->delete(route('clientes.destroy', $cliente));
+    expect(Route::has('clientes.destroy'))->toBeFalse();
+    $this->delete('/clientes/'.$cliente->id_cliente)->assertMethodNotAllowed();
+    $this->deleteJson('/clientes/'.$cliente->id_cliente)->assertMethodNotAllowed();
 
-    $response->assertRedirect(route('clientes.index'));
-    $this->assertDatabaseMissing('clientes', ['id_cliente' => $cliente->id_cliente]);
-});
-
-test('no elimina cliente si tiene vehículos', function () {
-    $cliente = Cliente::factory()->create();
-    $vehiculo = Vehiculo::factory()->create(['id_cliente' => $cliente->id_cliente]);
-
-    $response = $this->delete(route('clientes.destroy', $cliente));
-
-    $response->assertRedirect(route('clientes.index'));
-    $response->assertSessionHas('error');
-    $this->assertDatabaseHas('clientes', ['id_cliente' => $cliente->id_cliente]);
-});
+    $this->assertModelExists($cliente);
+    expect($cliente->vehiculos()->count())->toBe(1);
+})->with(['administrador', 'mecanico', 'recepcionista']);
 
 // ─── RELACIÓN ─────────────────────────────────────────────────────────────────
 

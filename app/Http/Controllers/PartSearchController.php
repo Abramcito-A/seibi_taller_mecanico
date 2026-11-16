@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cotizacion;
+use App\Models\DetalleCotizacion;
 use App\Models\OrdenServicio;
 use App\Services\PartSearch\PartSearchService;
 use Illuminate\Http\JsonResponse;
@@ -77,7 +78,7 @@ class PartSearchController extends Controller
     {
         abort_unless(auth()->user()?->hasRole('mecanico'), 403);
         abort_unless((int) $cotizacion->id_orden === (int) $orden->id_orden, 404);
-        abort_unless($cotizacion->estado === 'borrador', 403, 'Solo los borradores pueden modificarse.');
+        abort_unless($cotizacion->isEditableDraft(), 403, 'Solo los borradores pueden modificarse.');
 
         $request->merge([
             'idempotency_key' => $request->header('X-Idempotency-Key')
@@ -91,7 +92,7 @@ class PartSearchController extends Controller
         ]);
 
         $orden->loadMissing('vehiculo');
-        $offer = $this->partSearchService->enrichCachedOffer(
+        $offer = $this->partSearchService->resolveOfferForQuotation(
             (int) $request->user()->getKey(),
             (int) $orden->getKey(),
             (int) $orden->vehiculo->getKey(),
@@ -127,39 +128,42 @@ class PartSearchController extends Controller
 
             $detailId = DB::transaction(function () use ($cotizacion, $offer): int {
                 $locked = Cotizacion::query()->lockForUpdate()->findOrFail($cotizacion->id_cotizacion);
-                abort_unless($locked->estado === 'borrador', 403);
+                abort_unless($locked->isEditableDraft(), 403);
 
-                $priceHundredths = $this->decimalToHundredths(number_format((float) $offer['price_numeric'], 2, '.', ''));
+                $price = DetalleCotizacion::formatHundredths(
+                    DetalleCotizacion::decimalToHundredths(number_format((float) $offer['price_numeric'], 2, '.', ''))
+                );
                 $detail = $locked->detalles()->create([
                     'tipo_concepto' => 'pieza',
-                    'descripcion' => $offer['title'],
+                    'descripcion' => $this->limit($offer['title'], 255),
                     'cantidad' => '1.00',
-                    'precio_unitario' => $this->formatMoney($priceHundredths),
-                    'importe' => $this->formatMoney($priceHundredths),
+                    'precio_unitario' => $price,
+                    'precio_proveedor' => $price,
+                    'moneda_original' => $offer['original_currency'] ?? null,
+                    'precio_moneda_original' => $offer['original_price'] ?? null,
+                    'titulo_proveedor' => $this->limit($offer['title'] ?? null, 255),
+                    'importe' => $price,
                     'moneda' => 'MXN',
-                    'tienda_origen' => $offer['store_name'] ?? null,
-                    'marca' => $offer['brand'] ?? null,
-                    'numero_parte' => $offer['part_number'] ?? null,
+                    'tienda_origen' => $this->limit($offer['store_name'] ?? null, 150),
+                    'marca' => $this->limit($offer['brand'] ?? null, 100),
+                    'fabricante' => $this->limit($offer['manufacturer'] ?? null, 150),
+                    'numero_parte' => $this->limit($offer['part_number'] ?? null, 100),
                     'url_origen' => $offer['url'] ?? null,
+                    'enlace_estado' => ($offer['url'] ?? null) !== null ? 'proveedor' : 'sin_enlace',
+                    'enlace_motivo' => ($offer['url'] ?? null) !== null ? null : $this->missingLinkReason($offer),
+                    'enlace_verificado_en' => now(),
+                    'url_shopping' => $offer['shopping_url'] ?? null,
                     'imagen_url' => $offer['image_url'] ?? null,
+                    'proveedor' => $this->limit($offer['provider'] ?? null, 50),
+                    'proveedor_motor' => $this->limit($offer['provider_engine'] ?? null, 50),
+                    'proveedor_producto_id' => $this->limit($offer['provider_product_id'] ?? null, 100),
+                    'proveedor_token' => is_string($offer['page_token'] ?? null) ? $offer['page_token'] : null,
+                    'detalles_tecnicos' => DetalleCotizacion::sanitizeTechnicalDetails($offer['technical_details'] ?? null),
                 ]);
 
-                $subtotalCents = 0;
-                foreach ($locked->detalles()->get() as $detail) {
-                    $quantityHundredths = $this->decimalToHundredths((string) $detail->cantidad);
-                    $priceHundredths = $this->decimalToHundredths((string) $detail->precio_unitario);
-                    $product = $quantityHundredths * $priceHundredths;
-                    $lineCents = intdiv($product, 100);
-                    if (($product % 100) >= 50) {
-                        $lineCents++;
-                    }
-                    $subtotalCents += $lineCents;
-                }
-                $subtotal = number_format($subtotalCents / 100, 2, '.', '');
-                $locked->update([
-                    'subtotal' => $subtotal,
-                    'total' => $subtotal,
-                ]);
+                $locked->recalculateTotals();
+                $locked->revision++;
+                $locked->save();
 
                 return (int) $detail->getKey();
             });
@@ -168,30 +172,43 @@ class PartSearchController extends Controller
             $created = true;
         });
 
-        if ($created) {
-            $request->session()->flash('success', 'Refacción agregada correctamente a la cotización.');
-        }
+        $cotizacion->refresh();
+        $detail = $cotizacion->detalles()->find($detailId);
 
         return response()->json([
             'message' => $created
                 ? 'Refacción agregada correctamente a la cotización'
                 : 'La refacción ya estaba agregada por esta operación.',
             'detail_id' => $detailId,
+            'revision' => $cotizacion->revision,
+            'subtotal' => $cotizacion->subtotal,
+            'total' => $cotizacion->total,
+            'row_html' => $detail !== null
+                ? view('cotizaciones._detail-row', [
+                    'detail' => $detail->only(['id_detalle', ...DetalleCotizacion::EDITABLE_FIELDS]),
+                    'index' => '__INDEX__',
+                    'detailTypes' => DetalleCotizacion::CONCEPT_TYPES,
+                ])->render()
+                : null,
             'redirect_url' => route('cotizaciones.edit', [$orden, $cotizacion]),
             'idempotent' => ! $created,
         ]);
     }
 
-    private function decimalToHundredths(string $value): int
+    /**
+     * @param  array<string, mixed>  $offer
+     */
+    private function missingLinkReason(array $offer): string
     {
-        [$whole, $fraction] = array_pad(explode('.', trim($value), 2), 2, '');
-        $fraction = str_pad(substr($fraction, 0, 2), 2, '0');
-
-        return ((int) $whole * 100) + (int) $fraction;
+        return match ($offer['details_status'] ?? null) {
+            'provider_error' => 'El proveedor no respondió al consultar el detalle de la oferta.',
+            'not_available' => 'La oferta no trae identificador para consultar su detalle.',
+            default => 'El detalle del producto no muestra exactamente el mismo comercio y precio.',
+        };
     }
 
-    private function formatMoney(int $cents): string
+    private function limit(mixed $value, int $length): ?string
     {
-        return number_format($cents / 100, 2, '.', '');
+        return is_string($value) && trim($value) !== '' ? mb_substr(trim($value), 0, $length) : null;
     }
 }
