@@ -1,0 +1,11 @@
+@extends('layouts.app')
+@section('title', 'Cotizaciones '.$orden->folio)
+@section('content')
+    <nav aria-label="Ruta de navegación" class="mb-4 flex items-center gap-2 text-xs text-slate-500"><a href="{{ route('ordenes.index') }}" class="hover:text-seibi-navy">Órdenes de servicio</a><span>/</span><a href="{{ route('ordenes.show',['orden'=>$orden,'seccion'=>'cotizaciones']) }}" class="hover:text-seibi-navy">{{ $orden->folio }}</a><span>/</span><span class="font-medium text-seibi-ink">Cotizaciones</span></nav>
+    <x-ui.page-header title="Cotizaciones" :description="$orden->folio.' · '.$orden->vehiculo->marca.' '.$orden->vehiculo->modelo"><x-slot:actions>@if(auth()->user()->hasRole('mecanico'))<x-ui.button :href="route('cotizaciones.create',$orden)" icon="plus">Nueva cotización</x-ui.button>@endif<x-ui.back-button :fallback="route('ordenes.show',['orden'=>$orden,'seccion'=>'cotizaciones'])" /></x-slot:actions></x-ui.page-header>
+    <x-ui.card>
+        @if($cotizaciones->isEmpty())<x-ui.empty-state title="Sin cotizaciones" description="No existen presupuestos registrados para esta orden." icon="file-text" class="min-h-48" />@else
+            <div class="overflow-x-auto"><table class="min-w-full text-left"><thead><tr class="border-b border-seibi-border text-xs uppercase text-slate-500"><th class="px-3 py-3">Folio</th><th class="px-3 py-3">Trabajo</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3 text-right">Total</th><th></th></tr></thead><tbody class="divide-y divide-seibi-border">@foreach($cotizaciones as $cotizacion)<tr class="text-sm"><td class="px-3 py-3 font-semibold">{{ $cotizacion->folio }}</td><td class="px-3 py-3"><span class="block font-medium">{{ $cotizacion->titulo }}</span><span class="text-xs text-slate-500">{{ ucfirst($cotizacion->tipo) }}</span></td><td class="px-3 py-3">{{ ucfirst($cotizacion->estado) }}</td><td class="px-3 py-3 text-right font-semibold">$ {{ number_format((float)$cotizacion->total,2,'.',',') }} MXN</td><td class="px-3 py-3 text-right"><x-ui.button :href="route('cotizaciones.show',[$orden,$cotizacion])" variant="neutral" size="compact">Consultar</x-ui.button></td></tr>@endforeach</tbody></table></div>
+        @endif
+    </x-ui.card>
+@endsection
