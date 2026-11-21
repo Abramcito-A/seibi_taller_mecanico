@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class DetalleCotizacion extends Model
 {
@@ -26,17 +27,30 @@ class DetalleCotizacion extends Model
     public const CONCEPT_TYPES = ['pieza', 'servicio', 'mano_obra', 'otro'];
 
     /**
+     * Clasificación que asigna el mecánico a cada concepto; obligatoria al enviar la cotización al cliente.
+     *
+     * @var array<string, array{label: string, tone: string, description: string}>
+     */
+    public const PRIORITIES = [
+        'necesario' => ['label' => 'Necesario', 'tone' => 'error', 'description' => 'Requerido para la seguridad o el funcionamiento correcto del vehículo.'],
+        'recomendado' => ['label' => 'Recomendado', 'tone' => 'pending', 'description' => 'Conviene realizarlo pronto para evitar fallas o desgaste mayor.'],
+        'opcional' => ['label' => 'Opcional', 'tone' => 'info', 'description' => 'Mejora o mantenimiento que puede programarse más adelante.'],
+    ];
+
+    public const CLIENT_DECISIONS = ['pendiente', 'aceptado', 'rechazado'];
+
+    /**
      * Campos que el mecánico puede capturar o corregir desde el formulario.
      * El resto (url_shopping, proveedor, proveedor_motor, proveedor_producto_id, detalles_tecnicos)
      * es la instantánea del proveedor y solo la escribe el servidor al agregar una oferta.
      */
     public const EDITABLE_FIELDS = [
-        'tipo_concepto', 'descripcion', 'cantidad', 'precio_unitario', 'tienda_origen',
+        'tipo_concepto', 'prioridad', 'descripcion', 'cantidad', 'precio_unitario', 'tienda_origen',
         'marca', 'fabricante', 'numero_parte', 'url_origen', 'imagen_url',
     ];
 
     protected $fillable = [
-        'id_cotizacion', 'tipo_concepto', 'descripcion', 'cantidad', 'precio_unitario',
+        'id_cotizacion', 'tipo_concepto', 'prioridad', 'descripcion', 'cantidad', 'precio_unitario',
         'importe', 'moneda', 'tienda_origen', 'marca', 'fabricante', 'numero_parte', 'url_origen',
         'url_shopping', 'imagen_url', 'proveedor', 'proveedor_motor', 'proveedor_producto_id', 'detalles_tecnicos',
         'precio_proveedor', 'moneda_original', 'precio_moneda_original', 'titulo_proveedor', 'proveedor_token', 'enlace_estado', 'enlace_motivo', 'enlace_verificado_en',
@@ -52,6 +66,7 @@ class DetalleCotizacion extends Model
             'precio_moneda_original' => 'decimal:2',
             'detalles_tecnicos' => 'array',
             'enlace_verificado_en' => 'datetime',
+            'riesgo_confirmado_en' => 'datetime',
         ];
     }
 
@@ -153,8 +168,31 @@ class DetalleCotizacion extends Model
         return ($product % 100) >= 50 ? $cents + 1 : $cents;
     }
 
+    public function priorityLabel(): string
+    {
+        return self::PRIORITIES[$this->prioridad]['label'] ?? 'Sin clasificar';
+    }
+
+    public function priorityTone(): string
+    {
+        return self::PRIORITIES[$this->prioridad]['tone'] ?? 'neutral';
+    }
+
+    public function isNecessary(): bool
+    {
+        return $this->prioridad === 'necesario';
+    }
+
     public function cotizacion(): BelongsTo
     {
         return $this->belongsTo(Cotizacion::class, 'id_cotizacion', 'id_cotizacion');
+    }
+
+    /**
+     * Trabajo de reparación generado cuando el cliente aceptó este concepto (como máximo uno).
+     */
+    public function trabajoReparacion(): HasOne
+    {
+        return $this->hasOne(TrabajoReparacion::class, 'id_detalle', 'id_detalle');
     }
 }

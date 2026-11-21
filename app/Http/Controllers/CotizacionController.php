@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Cotizacion;
 use App\Models\DetalleCotizacion;
+use App\Models\EventoCotizacion;
 use App\Models\OrdenServicio;
+use App\Services\Mail\MailDeliveryGuard;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -85,13 +87,28 @@ class CotizacionController extends Controller
             ->with('success', 'Borrador de cotización guardado correctamente.');
     }
 
-    public function show(OrdenServicio $orden, Cotizacion $cotizacion): View
+    public function show(OrdenServicio $orden, Cotizacion $cotizacion, MailDeliveryGuard $mailGuard): View
     {
         abort_unless((int) $cotizacion->id_orden === (int) $orden->id_orden, 404);
         $orden->load(['vehiculo.cliente']);
-        $cotizacion->load('detalles');
+        $cotizacion->load([
+            'detalles' => fn ($query) => $query->orderBy('id_detalle'),
+            'origen:id_cotizacion,folio,version,estado',
+            'siguienteVersion:id_cotizacion,id_cotizacion_origen,folio,version,estado',
+            'eventos' => fn ($query) => $query->with('usuario:id,name')->latest('fecha')->latest('id_evento')->limit(100),
+        ]);
 
-        return view('cotizaciones.show', compact('orden', 'cotizacion'));
+        $latestAccess = $cotizacion->accesos()->latest('id_acceso')->first();
+        $lastDelivery = $cotizacion->eventos->first(fn (EventoCotizacion $event): bool => in_array($event->tipo, ['enviada', 'reenviada', 'envio_aceptado', 'envio_fallido'], true));
+
+        return view('cotizaciones.show', [
+            'orden' => $orden,
+            'cotizacion' => $cotizacion,
+            'latestAccess' => $latestAccess,
+            'lastDelivery' => $lastDelivery,
+            'mailStatus' => $mailGuard->status(),
+            'integrityValid' => $cotizacion->huella_contenido === null ? null : $cotizacion->hasValidFingerprint(),
+        ]);
     }
 
     public function edit(OrdenServicio $orden, Cotizacion $cotizacion): View
@@ -193,6 +210,7 @@ class CotizacionController extends Controller
             'detalles.*.id_detalle' => ['nullable', 'integer', 'min:1'],
             'detalles.*.descripcion' => ['required', 'string', 'max:255'],
             'detalles.*.tipo_concepto' => ['required', Rule::in(DetalleCotizacion::CONCEPT_TYPES)],
+            'detalles.*.prioridad' => ['nullable', Rule::in(array_keys(DetalleCotizacion::PRIORITIES))],
             'detalles.*.cantidad' => ['required', 'numeric', 'min:0.01', 'max:9999.99', 'regex:/^\d+(?:\.\d{1,2})?$/'],
             'detalles.*.precio_unitario' => ['required', 'numeric', 'min:0', 'max:99999999.99', 'regex:/^\d+(?:\.\d{1,2})?$/'],
             'detalles.*.moneda' => ['nullable', Rule::in(['MXN'])],
@@ -282,6 +300,7 @@ class CotizacionController extends Controller
 
         return [
             'tipo_concepto' => $detail['tipo_concepto'],
+            'prioridad' => $detail['prioridad'] ?? null,
             'descripcion' => $detail['descripcion'],
             'cantidad' => $quantity,
             'precio_unitario' => $price,

@@ -7,6 +7,7 @@ use App\Models\Evidencia;
 use App\Models\HistorialEstado;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Services\Reparaciones\RepairWorkService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,18 +25,9 @@ class OrdenServicioController extends Controller
 {
     private const MAX_PHOTOS = 10;
 
-    private const STATUS_LABELS = [
-        'recibida' => 'Recibida',
-        'en_diagnostico' => 'En diagnóstico',
-        'esperando_aprobacion' => 'Esperando aprobación',
-        'esperando_refaccion' => 'Esperando refacciones',
-        'esperando_refacciones' => 'Esperando refacciones',
-        'en_reparacion' => 'En reparación',
-        'lista_entrega' => 'Lista para entrega',
-        'entregada' => 'Entregada',
-        'cerrada' => 'Cerrada',
-        'cancelada' => 'Cancelada',
-    ];
+    private const STATUS_LABELS = OrdenServicio::STATUS_LABELS;
+
+    public function __construct(private RepairWorkService $repairWorks) {}
 
     public function index(Request $request): View
     {
@@ -157,11 +149,13 @@ class OrdenServicioController extends Controller
             'cotizaciones.detalles',
         ]);
 
-        $validSections = ['resumen', 'recepcion', 'diagnosticos', 'cotizaciones', 'evidencias', 'historial'];
+        $validSections = ['resumen', 'recepcion', 'diagnosticos', 'cotizaciones', 'seguimiento', 'evidencias', 'historial'];
         $section = $request->string('seccion')->toString();
         if (! in_array($section, $validSections, true)) {
             $section = 'resumen';
         }
+
+        $tracking = $section === 'seguimiento' ? $this->repairWorks->internalTracking($orden) : null;
 
         $diagnosisQuery = $orden->diagnosticos()
             ->with(['usuario', 'evidencias'])
@@ -189,6 +183,7 @@ class OrdenServicioController extends Controller
                 'severidad' => $diagnosisSeverity,
             ],
             'highlightedDiagnosisId' => $request->integer('destacado') ?: null,
+            'tracking' => $tracking,
         ]);
     }
 
