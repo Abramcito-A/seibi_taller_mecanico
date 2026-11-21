@@ -127,6 +127,7 @@ test('receptionists can create and update customers and vehicles but cannot dele
         'nombre' => 'Cliente recepción',
         'apellido' => 'Prueba',
         'telefono' => '5512345678',
+        'correo' => 'cliente.recepcion@example.com',
     ])->assertRedirect();
 
     $this->assertDatabaseHas('clientes', ['nombre' => 'Cliente recepción']);

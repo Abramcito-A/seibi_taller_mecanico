@@ -90,7 +90,7 @@ class ClienteController extends Controller
             'nombre' => 'required|string|max:100',
             'apellido' => 'required|string|max:100',
             'telefono' => 'required|string|max:20',
-            'correo' => 'nullable|email|max:150',
+            'correo' => 'required|email|max:150',
             'direccion' => 'nullable|string|max:255',
         ], [
             'nombre.required' => 'El nombre es obligatorio.',
@@ -99,6 +99,7 @@ class ClienteController extends Controller
             'apellido.max' => 'El apellido no puede exceder 100 caracteres.',
             'telefono.required' => 'El teléfono es obligatorio.',
             'telefono.max' => 'El teléfono no puede exceder 20 caracteres.',
+            'correo.required' => 'El correo electrónico es obligatorio; se usa para enviar las cotizaciones al cliente.',
             'correo.email' => 'El correo no tiene un formato válido.',
             'correo.max' => 'El correo no puede exceder 150 caracteres.',
             'direccion.max' => 'La dirección no puede exceder 255 caracteres.',

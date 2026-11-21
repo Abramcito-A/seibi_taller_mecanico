@@ -15,7 +15,7 @@
                 <x-ui.input name="nombre" label="Nombre" :value="$cliente->nombre" required maxlength="100" autocomplete="given-name" />
                 <x-ui.input name="apellido" label="Apellido" :value="$cliente->apellido" required maxlength="100" autocomplete="family-name" />
                 <x-ui.input name="telefono" label="Teléfono" :value="$cliente->telefono" required maxlength="20" autocomplete="tel" />
-                <x-ui.input name="correo" label="Correo electrónico" type="email" :value="$cliente->correo" maxlength="150" autocomplete="email" />
+                <x-ui.input name="correo" label="Correo electrónico" type="email" :value="$cliente->correo" maxlength="150" autocomplete="email" hint="A este correo se envían las cotizaciones." />
                 <div class="sm:col-span-2"><x-ui.input name="direccion" label="Dirección" :value="$cliente->direccion" maxlength="255" autocomplete="street-address" /></div>
             </div>
             <div class="mt-7 flex flex-col-reverse gap-3 border-t border-seibi-border pt-5 sm:flex-row sm:justify-end">

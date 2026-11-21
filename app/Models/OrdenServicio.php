@@ -11,6 +11,30 @@ class OrdenServicio extends Model
 {
     use HasFactory;
 
+    /**
+     * Etiquetas de los estados operativos de la orden.
+     *
+     * @var array<string, string>
+     */
+    public const STATUS_LABELS = [
+        'recibida' => 'Recibida',
+        'en_diagnostico' => 'En diagnóstico',
+        'esperando_aprobacion' => 'Esperando aprobación',
+        'esperando_refaccion' => 'Esperando refacciones',
+        'esperando_refacciones' => 'Esperando refacciones',
+        'en_reparacion' => 'En reparación',
+        'lista_entrega' => 'Lista para entrega',
+        'entregada' => 'Entregada',
+        'cerrada' => 'Cerrada',
+        'cancelada' => 'Cancelada',
+    ];
+
+    /** Estados en los que la orden terminó; el enlace del cliente queda en consulta por un plazo limitado. */
+    public const CLOSED_STATUSES = ['entregada', 'cerrada', 'cancelada'];
+
+    /** Estados en los que el mecánico registra avances de reparación. */
+    public const REPAIR_STATUSES = ['en_reparacion', 'esperando_refaccion', 'esperando_refacciones'];
+
     protected $table = 'ordenes_servicio';
 
     protected $primaryKey = 'id_orden';
@@ -84,5 +108,25 @@ class OrdenServicio extends Model
     public function accesosCliente(): HasMany
     {
         return $this->hasMany(AccesoCliente::class, 'id_orden', 'id_orden');
+    }
+
+    public function trabajosReparacion(): HasMany
+    {
+        return $this->hasMany(TrabajoReparacion::class, 'id_orden', 'id_orden');
+    }
+
+    public function actualizacionesReparacion(): HasMany
+    {
+        return $this->hasMany(ActualizacionReparacion::class, 'id_orden', 'id_orden');
+    }
+
+    public function isClosed(): bool
+    {
+        return in_array($this->estado, self::CLOSED_STATUSES, true);
+    }
+
+    public function isInRepair(): bool
+    {
+        return in_array($this->estado, self::REPAIR_STATUSES, true);
     }
 }

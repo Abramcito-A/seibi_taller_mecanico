@@ -3,11 +3,14 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\CotizacionController;
+use App\Http\Controllers\CotizacionEnvioController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiagnosticoController;
 use App\Http\Controllers\EvidenciaController;
 use App\Http\Controllers\OrdenServicioController;
 use App\Http\Controllers\PartSearchController;
+use App\Http\Controllers\PortalCotizacionController;
+use App\Http\Controllers\SeguimientoReparacionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VehiculoController;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +25,17 @@ Route::get('/', function () {
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
+});
+
+// Portal público de cotizaciones: acceso solo mediante el token privado del correo; sin IDs en la ruta.
+Route::middleware(['portal.headers', 'throttle:portal-cotizaciones'])->group(function () {
+    Route::get('/c/{token}', [PortalCotizacionController::class, 'show'])->name('portal.cotizaciones.show');
+    Route::post('/c/{token}/decision', [PortalCotizacionController::class, 'decide'])->name('portal.cotizaciones.decide');
+});
+
+// Fotografías publicadas del seguimiento: mismo token privado, identificadas por una referencia aleatoria (no por id).
+Route::middleware(['portal.headers', 'throttle:portal-fotos'])->group(function () {
+    Route::get('/c/{token}/fotos/{reference}', [PortalCotizacionController::class, 'photo'])->name('portal.cotizaciones.foto');
 });
 
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
@@ -77,12 +91,30 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('cotizaciones.update');
         Route::delete('/ordenes/{orden}/cotizaciones/{cotizacion}', [CotizacionController::class, 'destroy'])
             ->name('cotizaciones.destroy');
+        Route::post('/ordenes/{orden}/cotizaciones/{cotizacion}/enviar', [CotizacionEnvioController::class, 'send'])
+            ->name('cotizaciones.enviar');
+        Route::post('/ordenes/{orden}/cotizaciones/{cotizacion}/reenviar', [CotizacionEnvioController::class, 'resend'])
+            ->name('cotizaciones.reenviar');
+        Route::post('/ordenes/{orden}/cotizaciones/{cotizacion}/nueva-version', [CotizacionEnvioController::class, 'createVersion'])
+            ->name('cotizaciones.nueva-version');
+        Route::post('/ordenes/{orden}/cotizaciones/{cotizacion}/seguimiento', [CotizacionEnvioController::class, 'followUp'])
+            ->name('cotizaciones.seguimiento');
         Route::get('/ordenes/{orden}/autopartes/buscar', [PartSearchController::class, 'search'])
             ->name('autopartes.search');
         Route::get('/ordenes/{orden}/autopartes/oferta/detalles', [PartSearchController::class, 'offerDetails'])
             ->name('autopartes.details');
         Route::post('/ordenes/{orden}/cotizaciones/{cotizacion}/autopartes/agregar', [PartSearchController::class, 'addOffer'])
             ->name('autopartes.add');
+        Route::post('/ordenes/{orden}/seguimiento/avances', [SeguimientoReparacionController::class, 'storeUpdate'])
+            ->name('seguimiento.avances.store');
+        Route::post('/ordenes/{orden}/seguimiento/revision-final', [SeguimientoReparacionController::class, 'storeFinalReview'])
+            ->name('seguimiento.revision-final.store');
+        Route::post('/ordenes/{orden}/seguimiento/avances/{actualizacion}/publicar', [SeguimientoReparacionController::class, 'publish'])
+            ->name('seguimiento.avances.publicar');
+        Route::post('/ordenes/{orden}/seguimiento/etapa', [SeguimientoReparacionController::class, 'transition'])
+            ->name('seguimiento.etapa');
+        Route::post('/ordenes/{orden}/seguimiento/accesos/{acceso}/revocar', [SeguimientoReparacionController::class, 'revokeAccess'])
+            ->name('seguimiento.accesos.revocar');
         Route::get('/ordenes/{orden}/diagnosticos/create', [DiagnosticoController::class, 'create'])
             ->name('diagnosticos.create');
         Route::post('/ordenes/{orden}/diagnosticos', [DiagnosticoController::class, 'store'])

@@ -16,9 +16,19 @@
             'recepcion' => 'Recepción',
             'diagnosticos' => 'Diagnósticos',
             'cotizaciones' => 'Cotizaciones',
+            'seguimiento' => 'Seguimiento de reparación',
             'evidencias' => 'Evidencias',
             'historial' => 'Historial',
         ];
+        $authorizedQuotations = $orden->cotizaciones->filter(fn ($quotation) => $quotation->isAuthorized());
+        $awaitingQuotations = $orden->cotizaciones->filter(fn ($quotation) => $quotation->isAwaitingDecision());
+        $authorizationLabel = match (true) {
+            $authorizedQuotations->isNotEmpty() => $authorizedQuotations->count().' autorizada(s)'.($awaitingQuotations->isNotEmpty() ? ' · '.$awaitingQuotations->count().' pendiente(s)' : ''),
+            $awaitingQuotations->isNotEmpty() => 'Pendiente de respuesta',
+            $orden->cotizaciones->contains('estado', 'rechazada') => 'Rechazada por el cliente',
+            default => 'Sin cotización enviada',
+        };
+        $authorizedAmount = $authorizedQuotations->sum(fn ($quotation) => \App\Models\DetalleCotizacion::decimalToHundredths((string) $quotation->importe_autorizado));
         $recepcionEvidencias = $orden->evidencias->where('etapa', 'recepcion');
         $todasEvidencias = $orden->evidencias->whereIn('etapa', ['recepcion', 'diagnostico', 'reparacion', 'entrega']);
     @endphp
@@ -53,6 +63,8 @@
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Kilometraje</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $orden->kilometraje_ingreso === null ? '—' : number_format($orden->kilometraje_ingreso).' km' }}</dd></div>
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Estado</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $statusLabels[$orden->estado] ?? $orden->estado }}</dd></div>
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Responsable</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $orden->usuarioResponsable->name }}</dd></div>
+            <div><dt class="text-xs font-semibold uppercase text-slate-500">Autorización</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $authorizationLabel }}</dd></div>
+            @if ($authorizedQuotations->isNotEmpty())<div><dt class="text-xs font-semibold uppercase text-slate-500">Importe autorizado</dt><dd class="mt-1 text-sm font-semibold text-seibi-ink">$ {{ number_format($authorizedAmount / 100, 2, '.', ',') }} MXN</dd></div>@endif
         </dl>
     </x-ui.card>
 
@@ -224,7 +236,7 @@
                                 <tr class="text-sm">
                                     <td class="whitespace-nowrap px-3 py-3 font-semibold text-seibi-ink">{{ $cotizacion->folio }}</td>
                                     <td class="px-3 py-3"><span class="block font-medium text-seibi-ink">{{ $cotizacion->titulo }}</span><span class="text-xs text-slate-500">{{ ucfirst(str_replace('_', ' ', $cotizacion->tipo)) }}</span></td>
-                                    <td class="px-3 py-3"><x-ui.badge :tone="$cotizacion->estado === 'borrador' ? 'pending' : ($cotizacion->estado === 'aprobada' ? 'success' : ($cotizacion->estado === 'rechazada' || $cotizacion->estado === 'cancelada' ? 'error' : 'info'))">{{ ucfirst($cotizacion->estado) }}</x-ui.badge></td>
+                                    <td class="px-3 py-3"><x-ui.badge :tone="$cotizacion->statusTone()">{{ $cotizacion->statusLabel() }}</x-ui.badge>@if($cotizacion->version > 1)<span class="mt-1 block text-xs text-slate-500">Versión {{ $cotizacion->version }}</span>@endif</td>
                                     <td class="whitespace-nowrap px-3 py-3 text-right font-semibold text-seibi-ink">$ {{ number_format((float) $cotizacion->total, 2, '.', ',') }} MXN</td>
                                     <td class="px-3 py-3 text-right"><x-ui.button :href="route('cotizaciones.show', [$orden, $cotizacion])" variant="neutral" size="compact">Consultar</x-ui.button></td>
                                 </tr>
@@ -234,6 +246,10 @@
                 </div>
             @endif
         </x-ui.panel>
+    @endif
+
+    @if ($section === 'seguimiento' && $tracking !== null)
+        @include('ordenes._seguimiento', ['tracking' => $tracking])
     @endif
 
     @if ($section === 'evidencias')

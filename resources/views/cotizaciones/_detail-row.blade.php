@@ -38,6 +38,27 @@
             @error($errorPrefix.'.precio_unitario')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
     </div>
+    @php
+        $currentPriority = $detail['prioridad'] ?? null;
+        $priorityStyles = [
+            '' => 'has-checked:border-slate-400 has-checked:bg-white has-checked:text-seibi-ink',
+            'necesario' => 'has-checked:border-status-error has-checked:bg-red-50 has-checked:text-status-error',
+            'recomendado' => 'has-checked:border-status-pending has-checked:bg-amber-50 has-checked:text-status-pending',
+            'opcional' => 'has-checked:border-status-info has-checked:bg-blue-50 has-checked:text-status-info',
+        ];
+    @endphp
+    <fieldset class="mt-3">
+        <legend class="mb-1.5 text-xs font-semibold text-slate-600">Prioridad para el cliente <span class="font-normal text-slate-500">· obligatoria para enviar</span></legend>
+        <div class="flex flex-wrap gap-2">
+            @foreach (['' => 'Sin clasificar'] + collect(\App\Models\DetalleCotizacion::PRIORITIES)->map(fn (array $priority): string => $priority['label'])->all() as $priorityValue => $priorityLabel)
+                <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-seibi-border bg-white px-3 py-1 text-xs font-semibold text-slate-500 transition {{ $priorityStyles[$priorityValue] }}">
+                    <input type="radio" name="{{ $prefix }}[prioridad]" value="{{ $priorityValue }}" class="sr-only" @checked((string) $currentPriority === (string) $priorityValue)>
+                    {{ $priorityLabel }}
+                </label>
+            @endforeach
+        </div>
+        @error($errorPrefix.'.prioridad')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+    </fieldset>
     <div class="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-seibi-border pt-3">
         <details class="text-sm text-slate-600" @if($hasCommercialErrors) open @endif>
             <summary class="cursor-pointer font-semibold text-seibi-navy">Datos comerciales opcionales</summary>
