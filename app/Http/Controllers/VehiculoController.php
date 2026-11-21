@@ -30,11 +30,26 @@ class VehiculoController extends Controller
         return view('vehiculos.index', compact('vehiculos', 'clientes'));
     }
 
-    public function create()
-    {
-        $clientes = Cliente::orderBy('apellido')->orderBy('nombre')->get(['id_cliente', 'nombre', 'apellido']);
+    /** Pantallas desde las que se puede abrir «Nuevo vehículo» y a las que se regresa al guardarlo. */
+    private const ORIGINS = ['cliente', 'recepcion'];
 
-        return view('vehiculos.create', compact('clientes'));
+    public function create(Request $request)
+    {
+        // Desde el perfil del cliente o desde una recepción el cliente ya está decidido: se muestra fijo.
+        $lockedClient = $request->integer('cliente_id')
+            ? Cliente::query()->find($request->integer('cliente_id'), ['id_cliente', 'nombre', 'apellido', 'telefono'])
+            : null;
+        $clientes = $lockedClient === null
+            ? Cliente::orderBy('apellido')->orderBy('nombre')->get(['id_cliente', 'nombre', 'apellido'])
+            : collect();
+        $origen = in_array($request->query('origen'), self::ORIGINS, true) ? $request->query('origen') : null;
+
+        return view('vehiculos.create', [
+            'clientes' => $clientes,
+            'lockedClient' => $lockedClient,
+            'origen' => $origen,
+            'years' => self::yearOptions(),
+        ]);
     }
 
     public function store(Request $request)
@@ -48,7 +63,6 @@ class VehiculoController extends Controller
             'placas' => 'nullable|string|max:15',
             'numero_serie' => 'nullable|string|max:50',
             'kilometraje_actual' => 'nullable|integer|min:0',
-            'notas' => 'nullable|string',
         ], [
             'id_cliente.required' => 'Debe seleccionar un cliente.',
             'id_cliente.exists' => 'El cliente seleccionado no existe.',
@@ -69,8 +83,14 @@ class VehiculoController extends Controller
 
         $vehiculo = Vehiculo::create($validated);
 
-        return redirect()->route('vehiculos.show', $vehiculo)
-            ->with('success', 'Vehículo registrado exitosamente.');
+        return match ($request->input('origen')) {
+            'recepcion' => redirect()->route('ordenes.create', ['cliente_id' => $vehiculo->id_cliente])
+                ->with('success', 'Vehículo registrado. Ya puedes seleccionarlo para la recepción.'),
+            'cliente' => redirect()->route('clientes.show', $vehiculo->id_cliente)
+                ->with('success', 'Vehículo registrado exitosamente.'),
+            default => redirect()->route('vehiculos.show', $vehiculo)
+                ->with('success', 'Vehículo registrado exitosamente.'),
+        };
     }
 
     public function show(Vehiculo $vehiculo)
@@ -84,7 +104,27 @@ class VehiculoController extends Controller
     {
         $clientes = Cliente::orderBy('apellido')->orderBy('nombre')->get(['id_cliente', 'nombre', 'apellido']);
 
-        return view('vehiculos.edit', compact('vehiculo', 'clientes'));
+        return view('vehiculos.edit', [
+            'vehiculo' => $vehiculo,
+            'clientes' => $clientes,
+            'years' => self::yearOptions((int) $vehiculo->anio),
+        ]);
+    }
+
+    /**
+     * Años seleccionables, del más reciente (año próximo, por modelos adelantados) al más antiguo.
+     * Si el vehículo ya tiene un año fuera del rango se agrega para no perderlo al editar.
+     *
+     * @return list<int>
+     */
+    private static function yearOptions(?int $current = null): array
+    {
+        $years = range((int) date('Y') + 1, 1950);
+        if ($current !== null && $current > 0 && ! in_array($current, $years, true)) {
+            $years[] = $current;
+        }
+
+        return $years;
     }
 
     public function update(Request $request, Vehiculo $vehiculo)
@@ -98,7 +138,6 @@ class VehiculoController extends Controller
             'placas' => 'nullable|string|max:15',
             'numero_serie' => 'nullable|string|max:50',
             'kilometraje_actual' => 'nullable|integer|min:0',
-            'notas' => 'nullable|string',
         ], [
             'id_cliente.required' => 'Debe seleccionar un cliente.',
             'id_cliente.exists' => 'El cliente seleccionado no existe.',

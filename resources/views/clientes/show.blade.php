@@ -25,7 +25,7 @@
 
     <x-ui.panel title="Vehículos" :description="$cliente->vehiculos->count() . ' registrados'" padding="p-0">
         @if (auth()->user()->hasRole('recepcionista'))
-            <x-slot:actions><x-ui.button :href="route('vehiculos.create', ['cliente_id' => $cliente->id_cliente])" icon="plus">Agregar vehículo</x-ui.button></x-slot:actions>
+            <x-slot:actions><x-ui.button :href="route('vehiculos.create', ['cliente_id' => $cliente->id_cliente, 'origen' => 'cliente'])" icon="plus">Agregar vehículo</x-ui.button></x-slot:actions>
         @endif
         @if ($cliente->vehiculos->isEmpty())
             <x-ui.empty-state title="Sin vehículos registrados" description="Vincula el primer vehículo con este cliente." icon="car-front" />

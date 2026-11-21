@@ -7,14 +7,14 @@
         <x-slot:actions>
             <x-ui.back-button :fallback="route('ordenes.index')" />
             @if ($selectedClient && $selectedClient->vehiculos->isNotEmpty())
-                <x-ui.button :href="route('vehiculos.create', ['cliente_id' => $selectedClient->id_cliente])" variant="secondary" icon="plus">Agregar vehículo</x-ui.button>
+                <x-ui.button :href="route('vehiculos.create', ['cliente_id' => $selectedClient->id_cliente, 'origen' => 'recepcion'])" variant="secondary" icon="plus">Agregar vehículo</x-ui.button>
             @endif
         </x-slot:actions>
     </x-ui.page-header>
 
     <x-ui.panel class="mb-5" title="Cliente y vehículo" description="Los vehículos disponibles se limitan al cliente seleccionado." padding="p-4 sm:p-5">
         <div class="relative" id="cliente-combobox">
-            <label for="cliente_busqueda" class="mb-1.5 block text-sm font-semibold text-seibi-ink">Buscar cliente</label>
+            <label for="cliente_busqueda" class="mb-1.5 block text-sm font-semibold text-seibi-ink">Buscar cliente por teléfono</label>
             <div class="flex gap-2">
                 <input
                     id="cliente_busqueda"
@@ -24,7 +24,7 @@
                     aria-autocomplete="list"
                     aria-controls="cliente_resultados"
                     aria-expanded="false"
-                    placeholder="Nombre, apellido, teléfono o correo"
+                    placeholder="Teléfono (ej. 871 576 6792); también nombre o correo"
                     value="{{ $selectedClient ? $selectedClient->nombre.' '.$selectedClient->apellido : '' }}"
                     class="ui-input min-w-0 flex-1">
                 @if ($selectedClient)
@@ -46,7 +46,7 @@
     @elseif ($selectedClient->vehiculos->isEmpty())
         <x-ui.panel padding="p-0">
             <x-ui.empty-state title="Este cliente aún no tiene vehículos" description="Registra su vehículo antes de abrir una orden de servicio." icon="car-front">
-                <x-slot:action><x-ui.button :href="route('vehiculos.create', ['cliente_id' => $selectedClient->id_cliente])" icon="plus">Registrar vehículo</x-ui.button></x-slot:action>
+                <x-slot:action><x-ui.button :href="route('vehiculos.create', ['cliente_id' => $selectedClient->id_cliente, 'origen' => 'recepcion'])" icon="plus">Registrar vehículo</x-ui.button></x-slot:action>
             </x-ui.empty-state>
         </x-ui.panel>
     @else
@@ -67,8 +67,7 @@
                         </x-ui.select>
                     </div>
 
-                    <x-ui.input name="fecha_ingreso" label="Fecha y hora de ingreso" type="datetime-local" :value="old('fecha_ingreso', now()->format('Y-m-d\TH:i'))" required />
-                    <x-ui.input name="kilometraje_ingreso" label="Kilometraje de ingreso" type="number" :value="old('kilometraje_ingreso')" min="0" />
+                    <div class="sm:col-span-2 sm:max-w-sm"><x-ui.input name="fecha_ingreso" label="Fecha y hora de ingreso" type="datetime-local" :value="old('fecha_ingreso', now()->format('Y-m-d\TH:i'))" required /></div>
                     <div class="sm:col-span-2"><x-ui.textarea name="descripcion_problema" label="Falla o servicio reportado" :value="old('descripcion_problema')" rows="4" required maxlength="5000" /></div>
                     <div class="sm:col-span-2"><x-ui.textarea name="observaciones" label="Observaciones de recepción" :value="old('observaciones')" rows="3" maxlength="5000" /></div>
 

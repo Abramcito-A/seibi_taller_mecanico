@@ -44,35 +44,39 @@ document.addEventListener('click', (event) => {
 
 	event.preventDefault();
 
-	const fallback = button.dataset.fallback;
-	const currentPath = window.location.pathname;
-	let referrer = '';
-
+	// «Volver» sube un nivel en la jerarquía (expediente → listado, formulario → su ficha), nunca regresa a un
+	// formulario ya enviado. Solo se usa el historial cuando la página anterior es exactamente ese destino,
+	// para conservar sus filtros, página y posición de scroll.
+	let target = null;
 	try {
-		referrer = document.referrer ? new URL(document.referrer).href : '';
+		target = button.dataset.fallback ? new URL(button.dataset.fallback, window.location.origin) : null;
 	} catch {
-		referrer = '';
+		target = null;
 	}
 
-	const sameOrigin = referrer !== '' && new URL(referrer).origin === window.location.origin;
-	const notCurrent = referrer !== '' && new URL(referrer).pathname !== window.location.pathname;
-	let fallbackUrl = null;
-	try {
-		fallbackUrl = fallback ? new URL(fallback, window.location.origin) : null;
-	} catch {
-		fallbackUrl = null;
+	if (target === null || target.origin !== window.location.origin || target.pathname === window.location.pathname) {
+		return;
 	}
-	const safeFallback = fallbackUrl !== null && fallbackUrl.origin === window.location.origin && fallbackUrl.pathname !== currentPath;
-	const notFallbackLoop = !safeFallback || new URL(referrer).pathname !== fallbackUrl.pathname;
 
-	if (sameOrigin && notCurrent && notFallbackLoop && window.history.length > 1) {
+	let previous = null;
+	try {
+		previous = document.referrer ? new URL(document.referrer) : null;
+	} catch {
+		previous = null;
+	}
+
+	const previousIsTarget = previous !== null
+		&& previous.origin === target.origin
+		&& previous.pathname === target.pathname
+		&& (target.search === '' || previous.search === target.search)
+		&& window.history.length > 1;
+
+	if (previousIsTarget) {
 		window.history.back();
 		return;
 	}
 
-	if (safeFallback) {
-		window.location.assign(fallbackUrl.href);
-	}
+	window.location.assign(target.href);
 });
 
 document.addEventListener('submit', (event) => {

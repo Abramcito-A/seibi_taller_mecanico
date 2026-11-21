@@ -11,7 +11,7 @@
 
     <x-ui.panel class="mb-5" padding="p-4 sm:p-5">
         <form method="GET" action="{{ route('clientes.index') }}" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-            <x-ui.input name="q" label="Buscar clientes" :value="request('q')" placeholder="Nombre, apellido, teléfono o correo" />
+            <x-ui.input name="q" label="Buscar clientes" :value="request('q')" placeholder="Teléfono (ej. 871 576 6792), nombre o correo" />
             <x-ui.button type="submit" variant="secondary" icon="search">Buscar</x-ui.button>
             @if (request('q'))<x-ui.button :href="route('clientes.index')" variant="neutral">Limpiar</x-ui.button>@endif
         </form>
