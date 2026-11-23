@@ -22,12 +22,15 @@
                 </div>
                 <x-ui.input name="marca" label="Marca" :value="$vehiculo->marca" required maxlength="60" />
                 <x-ui.input name="modelo" label="Modelo" :value="$vehiculo->modelo" required maxlength="80" />
-                <x-ui.input name="anio" label="Año" type="number" :value="$vehiculo->anio" required min="1900" max="{{ date('Y') + 1 }}" />
+                <x-ui.select name="anio" label="Año" required>
+                    @foreach ($years as $year)
+                        <option value="{{ $year }}" @selected((string) old('anio', $vehiculo->anio) === (string) $year)>{{ $year }}</option>
+                    @endforeach
+                </x-ui.select>
                 <x-ui.input name="version" label="Versión / Trim" :value="$vehiculo->version" maxlength="100" />
                 <x-ui.input name="placas" label="Placas" :value="$vehiculo->placas" maxlength="15" />
                 <x-ui.input name="numero_serie" label="Número de serie (VIN)" :value="$vehiculo->numero_serie" maxlength="50" />
                 <x-ui.input name="kilometraje_actual" label="Kilometraje actual" type="number" :value="$vehiculo->kilometraje_actual" min="0" />
-                <div class="sm:col-span-2"><x-ui.textarea name="notas" label="Notas" :value="$vehiculo->notas" rows="3" /></div>
             </div>
             <div class="mt-7 flex flex-col-reverse gap-3 border-t border-seibi-border pt-5 sm:flex-row sm:justify-end">
                 <x-ui.button :href="route('vehiculos.show', $vehiculo)" variant="neutral">Cancelar</x-ui.button>

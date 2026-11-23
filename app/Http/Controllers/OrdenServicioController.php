@@ -9,6 +9,7 @@ use App\Models\OrdenServicio;
 use App\Models\User;
 use App\Services\Reparaciones\RepairWorkService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -110,7 +111,7 @@ class OrdenServicioController extends Controller
                 $orden->folio = $this->generateFolio();
                 $orden->tipo_orden = 'normal';
                 $orden->fecha_ingreso = Carbon::parse($validated['fecha_ingreso']);
-                $orden->kilometraje_ingreso = $validated['kilometraje_ingreso'] ?? null;
+                $orden->kilometraje_ingreso = null;
                 $orden->descripcion_problema = $validated['descripcion_problema'];
                 $orden->observaciones = $validated['observaciones'] ?? null;
                 $orden->estado = 'recibida';
@@ -192,17 +193,7 @@ class OrdenServicioController extends Controller
         abort_unless($orden->estado === 'recibida', 403);
 
         $search = trim((string) $request->query('q', ''));
-        $clientQuery = Cliente::query();
-
-        if ($search !== '') {
-            $pattern = '%'.$search.'%';
-            $clientQuery->where(function (Builder $clients) use ($pattern): void {
-                $clients->where('nombre', 'like', $pattern)
-                    ->orWhere('apellido', 'like', $pattern)
-                    ->orWhere('telefono', 'like', $pattern)
-                    ->orWhere('correo', 'like', $pattern);
-            });
-        }
+        $clientQuery = Cliente::query()->buscar($search);
 
         $selectedClientId = $request->integer('cliente_id') ?: $orden->vehiculo->id_cliente;
         $selectedClient = Cliente::query()->with('vehiculos')->find($selectedClientId);
@@ -217,6 +208,8 @@ class OrdenServicioController extends Controller
             'clientes' => $clients,
             'selectedClient' => $selectedClient,
             'search' => $search,
+            'receptionPhotos' => $this->receptionPhotos($orden),
+            'maxPhotos' => self::MAX_PHOTOS,
         ]);
     }
 
@@ -227,15 +220,40 @@ class OrdenServicioController extends Controller
         $validated = $this->validateReception($request);
         $photos = $validated['fotografias'] ?? [];
         $storedPaths = [];
+        $removedPaths = [];
+
+        // Fotografías de recepción ya guardadas que el usuario marcó para quitar (solo de esta orden).
+        $existingPhotos = $this->receptionPhotos($orden);
+        $removeIds = collect($request->input('quitar_fotografias', []))
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $existingPhotos->contains('id_evidencia', $id))
+            ->values()
+            ->all();
+
+        if ($existingPhotos->count() - count($removeIds) + count($photos) > self::MAX_PHOTOS) {
+            throw ValidationException::withMessages([
+                'fotografias' => 'La recepción puede tener hasta '.self::MAX_PHOTOS.' fotografías en total. Ya tiene '
+                    .($existingPhotos->count() - count($removeIds)).'; quita alguna o agrega menos.',
+            ]);
+        }
 
         try {
-            DB::transaction(function () use ($request, $orden, $validated, $photos, &$storedPaths): void {
+            DB::transaction(function () use ($request, $orden, $validated, $photos, $removeIds, &$storedPaths, &$removedPaths): void {
                 $lockedOrder = OrdenServicio::query()->lockForUpdate()->findOrFail($orden->id_orden);
                 abort_unless($lockedOrder->estado === 'recibida', 403);
 
+                if ($removeIds !== []) {
+                    $toRemove = Evidencia::query()
+                        ->where('id_orden', $lockedOrder->id_orden)
+                        ->where('etapa', Evidencia::ETAPA_RECEPCION)
+                        ->whereIn('id_evidencia', $removeIds)
+                        ->get();
+                    $removedPaths = $toRemove->pluck('ruta_archivo')->filter()->all();
+                    Evidencia::query()->whereIn('id_evidencia', $toRemove->modelKeys())->delete();
+                }
+
                 $lockedOrder->id_vehiculo = $validated['id_vehiculo'];
                 $lockedOrder->fecha_ingreso = Carbon::parse($validated['fecha_ingreso']);
-                $lockedOrder->kilometraje_ingreso = $validated['kilometraje_ingreso'] ?? null;
                 $lockedOrder->descripcion_problema = $validated['descripcion_problema'];
                 $lockedOrder->observaciones = $validated['observaciones'] ?? null;
                 $lockedOrder->save();
@@ -247,6 +265,9 @@ class OrdenServicioController extends Controller
 
             throw $exception;
         }
+
+        // Los archivos de las fotografías quitadas se borran solo después de confirmar la transacción.
+        $this->removeStoredFiles($removedPaths);
 
         return redirect()->route('ordenes.show', $orden)
             ->with('success', 'Datos de recepción actualizados.');
@@ -286,7 +307,8 @@ class OrdenServicioController extends Controller
                 Rule::exists('vehiculos', 'id_vehiculo')->where('id_cliente', $clientId),
             ],
             'fecha_ingreso' => ['required', 'date'],
-            'kilometraje_ingreso' => ['nullable', 'integer', 'min:0'],
+            'quitar_fotografias' => ['nullable', 'array'],
+            'quitar_fotografias.*' => ['integer'],
             'descripcion_problema' => ['required', 'string', 'max:5000'],
             'observaciones' => ['nullable', 'string', 'max:5000'],
             'fotografias' => ['nullable', 'array', 'max:'.self::MAX_PHOTOS],
@@ -297,8 +319,6 @@ class OrdenServicioController extends Controller
             'id_vehiculo.required' => 'Selecciona un vehículo.',
             'id_vehiculo.exists' => 'El vehículo no pertenece al cliente seleccionado.',
             'fecha_ingreso.required' => 'Indica la fecha y hora de ingreso.',
-            'kilometraje_ingreso.integer' => 'El kilometraje debe ser un número entero.',
-            'kilometraje_ingreso.min' => 'El kilometraje no puede ser negativo.',
             'descripcion_problema.required' => 'Describe la falla o servicio reportado.',
             'fotografias.array' => 'Las fotografías no tienen un formato válido.',
             'fotografias.max' => 'Puedes adjuntar hasta '.self::MAX_PHOTOS.' fotografías.',
@@ -306,6 +326,20 @@ class OrdenServicioController extends Controller
             'fotografias.*.mimes' => 'Solo se admiten imágenes JPEG, PNG o WebP.',
             'fotografias.*.max' => 'Cada fotografía debe pesar como máximo 5 MB.',
         ]);
+    }
+
+    /**
+     * Fotografías de recepción de la orden, en el orden en que se subieron.
+     *
+     * @return Collection<int, Evidencia>
+     */
+    private function receptionPhotos(OrdenServicio $orden): Collection
+    {
+        return Evidencia::query()
+            ->where('id_orden', $orden->id_orden)
+            ->where('etapa', Evidencia::ETAPA_RECEPCION)
+            ->orderBy('id_evidencia')
+            ->get();
     }
 
     private function generateFolio(): string

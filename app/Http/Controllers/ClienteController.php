@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cliente;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -11,14 +10,8 @@ class ClienteController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Cliente::query();
-
         $search = trim((string) $request->string('q'));
-        if ($search !== '') {
-            $query->where(function (Builder $builder) use ($search): void {
-                $this->applyClientSearch($builder, $search);
-            });
-        }
+        $query = Cliente::query()->buscar($search);
 
         $clientes = $query->orderBy('fecha_registro', 'desc')->paginate(15)->withQueryString();
 
@@ -33,9 +26,7 @@ class ClienteController extends Controller
         }
 
         $clientes = Cliente::query()
-            ->where(function (Builder $builder) use ($search): void {
-                $this->applyClientSearch($builder, $search);
-            })
+            ->buscar($search)
             ->orderBy('apellido')
             ->orderBy('nombre')
             ->limit(20)
@@ -51,32 +42,6 @@ class ClienteController extends Controller
                 'correo' => $cliente->correo,
             ]),
         ]);
-    }
-
-    private function applyClientSearch(Builder $query, string $search): void
-    {
-        $normalizedSearch = preg_replace('/\s+/', ' ', trim($search)) ?? trim($search);
-        $terms = preg_split('/\s+/', $normalizedSearch, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $pattern = '%'.$normalizedSearch.'%';
-
-        $query->where(function (Builder $fullNameQuery) use ($pattern): void {
-            $fullNameQuery->where('nombre', 'like', $pattern)
-                ->orWhere('apellido', 'like', $pattern)
-                ->orWhere('telefono', 'like', $pattern)
-                ->orWhere('correo', 'like', $pattern)
-                ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", [$pattern])
-                ->orWhereRaw("CONCAT(apellido, ' ', nombre) LIKE ?", [$pattern]);
-        });
-
-        foreach ($terms as $term) {
-            $termPattern = '%'.$term.'%';
-            $query->where(function (Builder $termQuery) use ($termPattern): void {
-                $termQuery->where('nombre', 'like', $termPattern)
-                    ->orWhere('apellido', 'like', $termPattern)
-                    ->orWhere('telefono', 'like', $termPattern)
-                    ->orWhere('correo', 'like', $termPattern);
-            });
-        }
     }
 
     public function create()

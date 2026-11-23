@@ -60,7 +60,7 @@
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Cliente</dt><dd class="mt-1 text-sm font-medium text-seibi-ink"><a href="{{ route('clientes.show', $orden->vehiculo->cliente) }}" class="hover:underline">{{ $orden->vehiculo->cliente->nombre }} {{ $orden->vehiculo->cliente->apellido }}</a></dd></div>
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Vehículo</dt><dd class="mt-1 text-sm font-medium text-seibi-ink">{{ $orden->vehiculo->marca }} {{ $orden->vehiculo->modelo }} · {{ $orden->vehiculo->anio }}</dd></div>
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Placas</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $orden->vehiculo->placas ?: '—' }}</dd></div>
-            <div><dt class="text-xs font-semibold uppercase text-slate-500">Kilometraje</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $orden->kilometraje_ingreso === null ? '—' : number_format($orden->kilometraje_ingreso).' km' }}</dd></div>
+            @if ($orden->kilometraje_ingreso !== null)<div><dt class="text-xs font-semibold uppercase text-slate-500">Kilometraje</dt><dd class="mt-1 text-sm text-seibi-ink">{{ number_format($orden->kilometraje_ingreso).' km' }}</dd></div>@endif
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Estado</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $statusLabels[$orden->estado] ?? $orden->estado }}</dd></div>
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Responsable</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $orden->usuarioResponsable->name }}</dd></div>
             <div><dt class="text-xs font-semibold uppercase text-slate-500">Autorización</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $authorizationLabel }}</dd></div>
@@ -96,7 +96,7 @@
         <x-ui.panel title="Recepción" description="Datos registrados al ingresar el vehículo">
             <dl class="grid gap-5 sm:grid-cols-2">
                 <div><dt class="text-xs font-semibold uppercase text-slate-500">Fecha de entrada</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $orden->fecha_ingreso->format('d/m/Y · H:i') }}</dd></div>
-                <div><dt class="text-xs font-semibold uppercase text-slate-500">Kilometraje</dt><dd class="mt-1 text-sm text-seibi-ink">{{ $orden->kilometraje_ingreso === null ? '—' : number_format($orden->kilometraje_ingreso).' km' }}</dd></div>
+                @if ($orden->kilometraje_ingreso !== null)<div><dt class="text-xs font-semibold uppercase text-slate-500">Kilometraje</dt><dd class="mt-1 text-sm text-seibi-ink">{{ number_format($orden->kilometraje_ingreso).' km' }}</dd></div>@endif
                 <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Problema reportado</dt><dd class="mt-1 whitespace-pre-line text-sm leading-6 text-seibi-ink">{{ $orden->descripcion_problema }}</dd></div>
                 <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase text-slate-500">Observaciones</dt><dd class="mt-1 whitespace-pre-line text-sm text-seibi-ink">{{ $orden->observaciones ?: '—' }}</dd></div>
             </dl>
