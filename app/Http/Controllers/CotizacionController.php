@@ -37,6 +37,9 @@ class CotizacionController extends Controller
     public function create(OrdenServicio $orden): RedirectResponse
     {
         abort_unless(auth()->user()?->hasRole('mecanico'), 403);
+        if (! $orden->diagnosticos()->exists()) {
+            return $this->diagnosisRequired($orden);
+        }
         $orden->load(['vehiculo.cliente', 'diagnosticos.usuario']);
 
         $cotizacion = DB::transaction(function () use ($orden): Cotizacion {
@@ -59,6 +62,9 @@ class CotizacionController extends Controller
     public function store(Request $request, OrdenServicio $orden): RedirectResponse
     {
         abort_unless(auth()->user()?->hasRole('mecanico'), 403);
+        if (! $orden->diagnosticos()->exists()) {
+            return $this->diagnosisRequired($orden);
+        }
         $validated = $this->validateQuotation($request);
 
         $cotizacion = DB::transaction(function () use ($request, $orden, $validated): Cotizacion {
@@ -312,6 +318,15 @@ class CotizacionController extends Controller
             'url_origen' => $detail['url_origen'] ?? null,
             'imagen_url' => $detail['imagen_url'] ?? null,
         ];
+    }
+
+    /**
+     * Una cotización se basa en los hallazgos del mecánico: sin diagnóstico registrado no se puede cotizar.
+     */
+    private function diagnosisRequired(OrdenServicio $orden): RedirectResponse
+    {
+        return redirect()->route('ordenes.show', ['orden' => $orden, 'seccion' => 'diagnosticos'])
+            ->with('error', 'Registra al menos un hallazgo de diagnóstico antes de crear una cotización.');
     }
 
     private function generateFolio(): string
