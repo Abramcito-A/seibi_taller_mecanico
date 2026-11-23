@@ -34,24 +34,23 @@
         </div>
 
         <div class="rounded-lg border border-seibi-border bg-seibi-workspace/30 p-4" data-part-search>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div class="flex-1">
-                    <label for="part-search-input" class="mb-2 block text-sm font-semibold text-seibi-ink">Buscar refacción</label>
-                    <input id="part-search-input" type="search" maxlength="150" placeholder="Ej. balatas delanteras" class="w-full rounded-lg border border-seibi-border bg-white px-3 py-2.5 text-sm text-seibi-ink focus:border-seibi-navy focus:outline-none focus:ring-2 focus:ring-seibi-navy/15">
-                    <p class="mt-1.5 text-xs text-slate-500">Búsqueda automática para {{ $orden->vehiculo->marca }} {{ $orden->vehiculo->modelo }} {{ $orden->vehiculo->anio }}{{ $orden->vehiculo->version ? ' · '.$orden->vehiculo->version : '' }}.</p>
-                    <fieldset class="mt-3 flex flex-wrap gap-4" aria-label="Modalidad de búsqueda">
-                        <label class="flex items-center gap-2 text-sm">
-                            <input type="radio" name="search_mode" value="compatible" checked class="text-seibi-navy">
-                            Buscar para este vehículo
-                        </label>
-                        <label class="flex items-center gap-2 text-sm">
-                            <input type="radio" name="search_mode" value="general" class="text-seibi-navy">
-                            Búsqueda general
-                        </label>
-                    </fieldset>
-                </div>
-                <x-ui.button type="button" variant="secondary" icon="search" data-search-parts>Buscar ofertas</x-ui.button>
+            <label for="part-search-input" class="mb-2 block text-sm font-semibold text-seibi-ink">Buscar refacción</label>
+            {{-- Campo y botón en la misma línea; Enter busca en lugar de enviar el formulario de la cotización. --}}
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <input id="part-search-input" type="search" maxlength="150" placeholder="Ej. balatas delanteras" enterkeyhint="search" class="min-h-11 w-full flex-1 rounded-lg border border-seibi-border bg-white px-3 py-2.5 text-sm text-seibi-ink focus:border-seibi-navy focus:outline-none focus:ring-2 focus:ring-seibi-navy/15">
+                <x-ui.button type="button" variant="secondary" icon="search" class="min-h-11 shrink-0 sm:px-5" data-search-parts>Buscar ofertas</x-ui.button>
             </div>
+            <p class="mt-1.5 text-xs text-slate-500">Búsqueda automática para {{ $orden->vehiculo->marca }} {{ $orden->vehiculo->modelo }} {{ $orden->vehiculo->anio }}{{ $orden->vehiculo->version ? ' · '.$orden->vehiculo->version : '' }}. Presiona Enter para buscar.</p>
+            <fieldset class="mt-3 flex flex-wrap gap-4" aria-label="Modalidad de búsqueda">
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="radio" name="search_mode" value="compatible" checked class="text-seibi-navy">
+                    Buscar para este vehículo
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="radio" name="search_mode" value="general" class="text-seibi-navy">
+                    Búsqueda general
+                </label>
+            </fieldset>
             <p class="mt-3 hidden text-sm text-slate-600" data-search-status role="status" aria-live="polite"></p>
             <p class="mt-2 hidden text-xs text-slate-500" data-search-summary></p>
             <p class="mt-3 hidden text-xs text-amber-800" data-search-warning>La compatibilidad nunca se confirma automáticamente: el proveedor no entrega datos de aplicación vehicular. Verifica número de parte o aplicación antes de autorizar el presupuesto.</p>
@@ -60,7 +59,7 @@
             <div class="mt-3 hidden grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-uncertain-results></div>
         </div>
 
-        <div>
+        <div id="conceptos" class="scroll-mt-6">
             <div class="mb-3 flex items-center justify-between gap-3">
                 <div><h2 class="text-sm font-semibold text-seibi-ink">Conceptos</h2><p class="text-xs text-slate-500">Piezas, servicios, mano de obra u otros conceptos.</p></div>
                 <x-ui.button type="button" variant="secondary" size="compact" data-add-detail>Agregar concepto</x-ui.button>
@@ -127,14 +126,20 @@
                 quantity.min = '0.01';
                 quantity.step = '0.01';
             } else {
+                // Piezas, servicios y otros: solo unidades enteras.
                 label.textContent = 'Cantidad';
                 quantity.min = '1';
+                quantity.max = '9999';
                 quantity.step = '1';
-                if (quantity.value !== '' && !Number.isInteger(Number(quantity.value))) {
-                    quantity.value = '1.00';
+                quantity.inputMode = 'numeric';
+                if (quantity.value !== '') {
+                    const number = Number(quantity.value);
+                    quantity.value = String(Number.isFinite(number) ? Math.max(1, Math.round(number)) : 1);
                 }
             }
         };
+        const isIntegerQuantity = input => input?.matches('[data-quantity-input]')
+            && input.closest('[data-detail-row]')?.querySelector('[data-detail-type]')?.value !== 'mano_obra';
         // Mismo cálculo que el servidor: centésimas enteras y redondeo half-up al centavo.
         const hundredths = value => {
             const [whole, fraction = ''] = String(value || '0').trim().split('.');
@@ -187,7 +192,18 @@
             }
         });
 
-        form.addEventListener('input', recalculate);
+        // En «Cantidad» no se puede escribir punto, coma, signo ni notación científica.
+        form.addEventListener('keydown', event => {
+            if (isIntegerQuantity(event.target) && ['.', ',', 'e', 'E', '-', '+'].includes(event.key)) {
+                event.preventDefault();
+            }
+        });
+        form.addEventListener('input', event => {
+            if (isIntegerQuantity(event.target) && /[^\d]/.test(event.target.value)) {
+                event.target.value = event.target.value.replace(/[^\d]/g, '');
+            }
+            recalculate();
+        });
         form.addEventListener('change', event => {
             const type = event.target.closest('[data-detail-type]');
             if (type) {
@@ -230,6 +246,33 @@
                 element.textContent = text;
                 return element;
             };
+            // Deja el buscador vacío tras agregar una pieza; conserva el mensaje de resultado.
+            const clearSearch = () => {
+                searchInput.value = '';
+                results.replaceChildren();
+                uncertainResults.replaceChildren();
+                uncertainResults.classList.add('hidden');
+                toggleUncertain.classList.add('hidden');
+                summary.classList.add('hidden');
+                warning.classList.add('hidden');
+            };
+            // Lleva al mecánico al concepto agregado y lo resalta un momento.
+            const showConcept = row => {
+                const target = row || form.querySelector('#conceptos');
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (row) {
+                    row.classList.add('ring-2', 'ring-seibi-navy/40', 'bg-seibi-navy/5');
+                    window.setTimeout(() => row.classList.remove('ring-2', 'ring-seibi-navy/40', 'bg-seibi-navy/5'), 2500);
+                    row.querySelector('[data-quantity-input]')?.focus({ preventScroll: true });
+                }
+            };
+            const searchButton = searchPanel.querySelector('[data-search-parts]');
+            searchInput.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    searchButton.click();
+                }
+            });
             toggleUncertain.addEventListener('click', () => {
                 const hidden = uncertainResults.classList.toggle('hidden');
                 toggleUncertain.textContent = hidden
@@ -237,7 +280,7 @@
                     : 'Ocultar resultados sin evidencia automotriz';
             });
 
-            searchPanel.querySelector('[data-search-parts]').addEventListener('click', async () => {
+            searchButton.addEventListener('click', async () => {
                 const query = searchInput.value.trim();
                 const mode = searchPanel.querySelector('input[name="search_mode"]:checked')?.value || 'compatible';
                 if (query.length < 2) {
@@ -539,6 +582,8 @@
                                 if (result.row_html && !list.querySelector(`[data-detail-id="${result.detail_id}"]`)) {
                                     insertRow(result.row_html);
                                 }
+                                clearSearch();
+                                showConcept(list.querySelector(`[data-detail-id="${result.detail_id}"]`) || list.lastElementChild);
                             } catch (error) {
                                 button.disabled = false;
                                 button.textContent = 'Agregar a cotización';

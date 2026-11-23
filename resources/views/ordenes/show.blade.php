@@ -222,7 +222,14 @@
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <p class="text-sm text-slate-600">{{ $orden->cotizaciones->count() }} cotización(es) registrada(s).</p>
                 @if (auth()->user()->hasRole('mecanico'))
-                    <x-ui.button :href="route('cotizaciones.create', $orden)" icon="plus">Nueva cotización</x-ui.button>
+                    @if ($orden->diagnosticos()->exists())
+                        <x-ui.button :href="route('cotizaciones.create', $orden)" icon="plus">Nueva cotización</x-ui.button>
+                    @else
+                        <div class="flex flex-col items-end gap-1">
+                            <x-ui.button icon="plus" disabled>Nueva cotización</x-ui.button>
+                            <p class="text-xs text-slate-500">Registra primero un hallazgo de <a href="{{ route('ordenes.show', ['orden' => $orden, 'seccion' => 'diagnosticos']) }}" class="font-semibold text-seibi-navy underline">diagnóstico</a>.</p>
+                        </div>
+                    @endif
                 @endif
             </div>
             @if ($orden->cotizaciones->isEmpty())

@@ -3,6 +3,7 @@
 use App\Models\Cliente;
 use App\Models\Cotizacion;
 use App\Models\DetalleCotizacion;
+use App\Models\Diagnostico;
 use App\Models\OrdenServicio;
 use App\Models\Role;
 use App\Models\User;
@@ -27,10 +28,21 @@ function quotationOrder(): OrdenServicio
     $vehicle = Vehiculo::factory()->create(['id_cliente' => $client->id_cliente]);
     $mechanic = quotationUserWithRole('mecanico');
 
-    return OrdenServicio::factory()->create([
+    $order = OrdenServicio::factory()->create([
         'id_vehiculo' => $vehicle->id_vehiculo,
         'id_usuario' => $mechanic->id,
     ]);
+
+    // Cotizar requiere al menos un hallazgo de diagnóstico registrado.
+    Diagnostico::query()->create([
+        'id_orden' => $order->id_orden,
+        'id_usuario' => $mechanic->id,
+        'titulo' => 'Hallazgo de prueba',
+        'descripcion' => 'Diagnóstico registrado para poder cotizar.',
+        'severidad' => 'media',
+    ]);
+
+    return $order;
 }
 
 function quotationPayload(?array $details = null): array
@@ -363,6 +375,35 @@ test('editing with the real form keeps a stored shopping link that the url rule 
     expect($searched->refresh()->precio_unitario)->toBe('400.00')
         ->and($searched->url_shopping)->toContain('|PROD_PC_2093221156077793499')
         ->and($quotation->refresh()->total)->toBe('600.00');
+});
+
+test('mechanic cannot start or save a quotation before a diagnosis is registered', function () {
+    $mechanic = quotationUserWithRole('mecanico');
+    $client = Cliente::factory()->create();
+    $vehicle = Vehiculo::factory()->create(['id_cliente' => $client->id_cliente]);
+    $order = OrdenServicio::factory()->create(['id_vehiculo' => $vehicle->id_vehiculo, 'id_usuario' => $mechanic->id]);
+    $diagnosisTab = route('ordenes.show', ['orden' => $order, 'seccion' => 'diagnosticos']);
+    $message = 'Registra al menos un hallazgo de diagnóstico antes de crear una cotización.';
+
+    $this->actingAs($mechanic);
+
+    $this->get(route('cotizaciones.create', $order))
+        ->assertRedirect($diagnosisTab)
+        ->assertSessionHas('error', $message);
+    $this->post(route('cotizaciones.store', $order), quotationPayload())
+        ->assertRedirect($diagnosisTab)
+        ->assertSessionHas('error', $message);
+
+    expect($order->cotizaciones()->count())->toBe(0);
+});
+
+test('edit form renders piece quantities as whole numbers', function () {
+    [$order, $quotation, $searched] = draftWithSearchedAndManualDetails();
+    $searched->update(['cantidad' => '2.00', 'importe' => '900.56']);
+
+    $this->get(route('cotizaciones.edit', [$order, $quotation]))
+        ->assertOk()
+        ->assertSee('name="detalles[0][cantidad]" value="2" type="number" min="1" max="9999" step="1"', false);
 });
 
 test('edit form renders labor hours with decimal steps and shows row errors under the right field', function () {

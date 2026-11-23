@@ -5,6 +5,11 @@
     $hasCommercialErrors = collect(['tienda_origen', 'marca', 'fabricante', 'numero_parte', 'url_origen', 'imagen_url'])
         ->contains(fn (string $field): bool => $errors->has($errorPrefix.'.'.$field));
     $fromProvider = filled($detail['proveedor'] ?? null);
+    // Piezas, servicios y otros se cotizan en unidades enteras; solo la mano de obra acepta horas con decimales.
+    $quantityValue = (string) ($detail['cantidad'] ?? '1');
+    if (! $isLabor && is_numeric($quantityValue) && (float) $quantityValue == (int) $quantityValue) {
+        $quantityValue = (string) (int) $quantityValue;
+    }
 @endphp
 <div data-detail-row @if(filled($detail['id_detalle'] ?? null)) data-detail-id="{{ $detail['id_detalle'] }}" @endif class="rounded-lg border border-seibi-border bg-seibi-workspace/40 p-3">
     @if(filled($detail['id_detalle'] ?? null))
@@ -29,7 +34,7 @@
         </div>
         <div class="md:col-span-2">
             <label class="mb-1.5 block text-xs font-semibold text-slate-600" data-quantity-label>{{ $isLabor ? 'Horas' : 'Cantidad' }}</label>
-            <input name="{{ $prefix }}[cantidad]" value="{{ $detail['cantidad'] ?? '1.00' }}" type="number" min="{{ $isLabor ? '0.01' : '1' }}" max="9999.99" step="{{ $isLabor ? '0.01' : '1' }}" required data-quantity-input class="w-full rounded-lg border border-seibi-border bg-white px-3 py-2 text-sm">
+            <input name="{{ $prefix }}[cantidad]" value="{{ $quantityValue }}" type="number" min="{{ $isLabor ? '0.01' : '1' }}" max="{{ $isLabor ? '9999.99' : '9999' }}" step="{{ $isLabor ? '0.01' : '1' }}" @unless($isLabor) inputmode="numeric" @endunless required data-quantity-input class="w-full rounded-lg border border-seibi-border bg-white px-3 py-2 text-sm">
             @error($errorPrefix.'.cantidad')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
         <div class="md:col-span-2">

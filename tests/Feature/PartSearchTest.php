@@ -3,6 +3,7 @@
 use App\Models\Cliente;
 use App\Models\Cotizacion;
 use App\Models\DetalleCotizacion;
+use App\Models\Diagnostico;
 use App\Models\OrdenServicio;
 use App\Models\Role;
 use App\Models\User;
@@ -38,10 +39,21 @@ function partSearchOrder(): OrdenServicio
     ]);
     $mechanic = partSearchUser('mecanico');
 
-    return OrdenServicio::factory()->create([
+    $order = OrdenServicio::factory()->create([
         'id_vehiculo' => $vehiculo->id_vehiculo,
         'id_usuario' => $mechanic->id,
     ]);
+
+    // Cotizar requiere al menos un hallazgo de diagnóstico registrado.
+    Diagnostico::query()->create([
+        'id_orden' => $order->id_orden,
+        'id_usuario' => $mechanic->id,
+        'titulo' => 'Hallazgo de prueba',
+        'descripcion' => 'Diagnóstico registrado para poder cotizar.',
+        'severidad' => 'media',
+    ]);
+
+    return $order;
 }
 
 test('part search requires a mechanic and is unavailable without an API key', function () {
